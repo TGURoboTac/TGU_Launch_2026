@@ -25,7 +25,17 @@ endfunction()
 file(GLOB_RECURSE SOURCES ${sources} "${CMAKE_CURRENT_SOURCE_DIR}/*.*")
 recursion_include(${CMAKE_CURRENT_SOURCE_DIR})
 
-add_library(app OBJECT ${SOURCES})
+add_library(app OBJECT ${SOURCES}
+        chassis/chassis.cpp
+        chassis/chassis.h
+        launcher/launcher.cpp
+        launcher/launcher.h
+        launcher/launcher_task.cpp
+        arm/arm.cpp
+        arm/arm.h
+        arm/arm_task.cpp
+        motion/motion.cpp
+        motion/motion.h)
 target_include_directories(app PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
 
 target_link_libraries(app PUBLIC components bsp m)

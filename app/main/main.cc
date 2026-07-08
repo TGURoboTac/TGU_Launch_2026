@@ -12,7 +12,9 @@
 #include "rc/ht10.h"
 #include "utils/os.h"
 
-extern void example_task(void *args);
+extern void chassis_task(void *args);
+extern void launcher_task(void *args);
+extern void arm_task(void *args);
 
 extern "C" [[noreturn]] void app_entrance(void *args) {
     bsp_hw_init();
@@ -20,23 +22,26 @@ extern "C" [[noreturn]] void app_entrance(void *args) {
     bsp_led_set(0, 50, 0);
     bsp_buzzer_flash(4500, 0.2f, 100);
     bsp_time_delay(100);
+    HAL_GPIO_WritePin(POWER_5V_GPIO_Port, POWER_5V_Pin, GPIO_PIN_SET);
 
     // Init Basic Components
 
     // logger::init(E_UART_1, logger::INFO);
     // terminal::init(E_UART_1, 921600);
     // rc::dr16::init(E_UART_5);
-    // rc::ht10::init(E_UART_5);
+    rc::ht10::init(E_UART_5);
 
-    ins::init();
-    while (!ins::inited) os::task::sleep(5), bsp_iwdg_refresh();
+    // ins::init();
+    // while (!ins::inited) os::task::sleep(5), bsp_iwdg_refresh();
 
     bsp_buzzer_flash(4500, 0.2f, 75);
     bsp_time_delay(50);
     bsp_buzzer_flash(4500, 0.2f, 75);
 
     // Init Application Tasks
-    os::task::static_create(example_task, nullptr, "example_task", 512, os::task::Priority::HIGH);
+    os::task::static_create(chassis_task, nullptr, "chassis_task", 1024, os::task::Priority::HIGH);
+    os::task::static_create(launcher_task, nullptr, "launcher_task", 1024, os::task::Priority::HIGH);
+    os::task::static_create(arm_task, nullptr, "arm_task", 1024, os::task::Priority::MEDIUM);
 
     for (;;) {
         bsp_led_set_hsv(static_cast<float>(bsp_time_get_ms() % 3000) / 3000.0f, 1.0f, 0.3f);
