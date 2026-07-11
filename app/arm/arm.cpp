@@ -15,7 +15,7 @@ using namespace controller;
 
 // ---------- 电机与 PID 定义 ----------
 motor::dji M_YALL("motor_YALL", motor::dji::GM6020,
-                  motor::dji::param_t{.id = 2, .port = E_CAN_1, .mode = motor::dji::CURRENT});
+                  motor::dji::param_t{.id = 1, .port = E_CAN_1, .mode = motor::dji::VOLTAGE});
 motor::dji M_LIFTER("motor_FILTER", motor::dji::M3508,
                     motor::dji::param_t{.id = 1, .port = E_CAN_1, .mode = motor::dji::CURRENT}, -1, 1);
 
@@ -118,9 +118,7 @@ ArmState arm_get_state() {
 void arm_auto_load() {
 
     // vofa::send(E_UART_1,
-    //     arm_state,+
-    //     M_LIFTER.feedback.current, M_LIFTER.feedback.speed,
-    //     M_YALL.feedback.current, M_YALL.feedback.speed);
+    //     M_YALL.feedback.angle, M_YALL.feedback.speed, M_YALL.feedback.timestamp);
 
     switch (arm_state) {
         case ArmState::IDLE:

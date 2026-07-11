@@ -27,6 +27,8 @@ void launcher_manual_speed(float left_speed, float right_speed); // 手动速度
 void launcher_manual_position(float left_position, float right_position);
 LauncherState launcher_get_state();  // 获取当前状态
 void Fire(uint32_t status);
+void launcher_balance_reset();        // 清除电流均衡 PID 积分
 void Launcher_offline_protect();    //离线保护
+void Reset_launcher_state();
 
 #endif //TROBOT_LAUNCHER_H

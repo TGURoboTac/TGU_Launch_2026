@@ -37,9 +37,9 @@ bool Motion::homeMotor()
     {
         stall_count_ = 0;
         homed_ = true;
+        zero_position_ = get_motor_total_position();
         motor_.update(0);
         speed_pid_.clear();
-        zero_position_ = get_motor_total_position();
 
         return true;
     }
@@ -66,7 +66,7 @@ void Motion::startTrajectory(float load_target){     //开启一条新轨迹
     target_position_ = getCurrentPosition();
 }
 
-void Motion::update(float step){    //更新电机位置
+void Motion::update(float step, float position_offset){
     float current = getCurrentPosition();
 
     if (target_position_ < aim_position_){
@@ -81,7 +81,8 @@ void Motion::update(float step){    //更新电机位置
             target_position_ = aim_position_;
     }
 
-     float speed_cmd = position_pid_.update(current, target_position_);
+     float effective_target = target_position_ + position_offset;
+     float speed_cmd = position_pid_.update(current, effective_target);
      float current_cmd = speed_pid_.update(motor_.feedback.speed, speed_cmd);
      motor_.update(current_cmd);
 }

@@ -47,7 +47,7 @@ public:
 
     void startTrajectory(float load_target); //开启一条新轨迹
 
-    void update(float step);    //更新电机位置
+    void update(float step, float position_offset = 0.0f);    //更新电机位置，position_offset 用于双电机电流均衡的外部位置偏置
 
     [[nodiscard]] bool isArrived() const;   //判断电机是否达到目标位置标志位
 
@@ -69,8 +69,8 @@ public:
     float stall_speed_ = 0.0f;      // 堵转速度阈值 (rad/s)，低于此速度才判定堵转
     float stall_current_ = 0.0f;     // 堵转电流阈值 (A)
     bool homed_ = false;    //判断是否回零点标志位
-    int stall_count_ ;      //连续超过阈值次数
-    int stall_count_threshold_;      // 连续超过阈值次数（1ms/次 → 5ms 去抖）
+    int stall_count_ = 0;      //连续超过阈值次数
+    int stall_count_threshold_ = 0;      // 连续超过阈值次数（1ms/次 → 5ms 去抖）
     float position_tolerance_ = 0.0f;
 private:
 

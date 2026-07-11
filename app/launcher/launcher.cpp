@@ -10,8 +10,22 @@
 #include "utils/vofa.h"
 #include "motion.h"
 #include "bsp/buzzer.h"
+#include "bsp/time.h"
 
 using namespace controller;
+
+// ---------- 双电机电流均衡 PID ----------
+// 两电机通过同步带机械耦合，运动方向相反。
+// I_left + I_right ≈ 0 表示负载均匀分配。
+// 该 PID 以电流差为误差，输出位置偏置来重新分配负载。
+// 同时兼容自动状态机 (LOADING_REVERSE) 和遥控器手动位置模式。
+static pid current_balance_pid(0.02f, 0.01f, 0.0f, 0.3f, 0.5f);
+
+static float launcher_compute_balance();
+
+void launcher_balance_reset() {
+    current_balance_pid.clear();
+}
 
 // ---------- 电机与 PID 定义 ----------
 motor::dji M_SwitchLeft("motor_SwitchLeft", motor::dji::M3508,
@@ -49,6 +63,11 @@ Motion RightLauncher(
 static float GM3508LeftPosition = 0.0;
 static float GM3508RightPosition = 0.0;
 
+static float launcher_compute_balance() {
+    float current_error = M_SwitchLeft.feedback.current + M_SwitchRight.feedback.current;
+    return current_balance_pid.update(current_error, 0.0f);
+}
+
 // ---------- 状态机变量 ----------
 static LauncherState launcher_state = LauncherState::IDLE;
 
@@ -71,6 +90,7 @@ void LauncherTriggerLoad() {
         RightLauncher.resetHome();
         LeftLauncher.resetPID();
         RightLauncher.resetPID();
+        launcher_balance_reset();
     }
 }
 
@@ -91,13 +111,16 @@ float left_AimPosition, right_AimPosition;
 void launcher_manual_position(float left_position, float right_position) {
     if (launcher_state != LauncherState::IDLE)
         return;
+
+    float correction = launcher_compute_balance();
+
     left_AimPosition += left_position;
-    const float left_AimSpeed = M3508_SwitchLeftPID_position.update(GM3508LeftPosition, left_AimPosition);
+    const float left_AimSpeed = M3508_SwitchLeftPID_position.update(GM3508LeftPosition, left_AimPosition + correction);
     const float left_output = M3508_SwitchLeftPID.update(M_SwitchLeft.feedback.speed, left_AimSpeed);
     M_SwitchLeft.update(left_output);
 
     right_AimPosition += right_position;
-    const float right_AimSpeed = M3508_SwitchRightPID_position.update(GM3508RightPosition, right_AimPosition);
+    const float right_AimSpeed = M3508_SwitchRightPID_position.update(GM3508RightPosition, right_AimPosition + correction);
     const float right_output = M3508_SwitchRightPID.update(M_SwitchRight.feedback.speed, right_AimSpeed);
     M_SwitchRight.update(right_output);
 }
@@ -111,13 +134,23 @@ void Launcher_offline_protect() {
     RightLauncher.motor_offline_protect();
 }
 
+void Reset_launcher_state() {
+    launcher_state = LauncherState::IDLE;
+    LeftLauncher.resetPID();
+    RightLauncher.resetPID();
+    launcher_balance_reset();
+    left_AimPosition = GM3508LeftPosition;
+    right_AimPosition = GM3508RightPosition;
+}
+
 // ---------- 自动上膛状态机 ----------
 void launcher_auto_load() {
-    // vofa::send(E_UART_1,
-    //     GM3508LeftPosition,
-    //     GM3508RightPosition
-    //     );
-    vofa::send(E_UART_1, M_SwitchLeft.output, M_SwitchRight.output, M_SwitchLeft.feedback.raw.temp, M_SwitchRight.feedback.raw.temp, M_SwitchLeft.feedback.timestamp,  M_SwitchRight.feedback.timestamp);
+    vofa::send(E_UART_1,
+        LeftLauncher.getCurrentPosition(),
+        M_SwitchLeft.feedback.current, M_SwitchRight.feedback.current,
+        M_SwitchLeft.output, M_SwitchRight.output,
+        M_SwitchLeft.feedback.raw.temp, M_SwitchRight.feedback.raw.temp
+        );
     switch (launcher_state) {
 
         case LauncherState::IDLE:
@@ -139,24 +172,45 @@ void launcher_auto_load() {
                 //设定此时位置零点
                 LeftLauncher.startTrajectory(12.0);
                 RightLauncher.startTrajectory(-12.0);
-                launcher_state = LauncherState::IDLE;
+                launcher_balance_reset();
+                launcher_state = LauncherState::LOADING_REVERSE;
             }
             break;
         }
 
         // ---- 上膛阶段：两电机从零点朝各自上膛方向转动固定距离 ----
         case LauncherState::LOADING_REVERSE: {
-            // 开始反向上膛
-            LeftLauncher.update(0.005f);
-            RightLauncher.update(0.005f);
+            static int loading_stall_count = 0;
+            float correction = launcher_compute_balance();
+
+            // 两电机运动方向相反，均施加 +correction 偏置可使高负载侧滞后、低负载侧超前
+            LeftLauncher.update(0.005f, correction);
+            RightLauncher.update(0.005f, correction);
 
             // 两电机都到位后完成
             if (LeftLauncher.isArrived() && RightLauncher.isArrived())
             {
+                loading_stall_count = 0;
                 bsp_buzzer_flash(3000, 0.8f, 200);
+                launcher_balance_reset();
                 LeftLauncher.resetPID();
                 RightLauncher.resetPID();
                 launcher_state = LauncherState::RETURN_TO_ZERO;
+            } else if ((abs(M_SwitchLeft.feedback.speed) < 1 && abs(M_SwitchRight.feedback.speed) < 1) &&
+                        abs(M_SwitchLeft.output) > 16000 && abs(M_SwitchRight.output) > 16000) {
+                loading_stall_count++;
+                if (loading_stall_count >= 10) {
+                    loading_stall_count = 0;
+                    bsp_buzzer_flash(2000, 1.0f, 1000);
+                    launcher_balance_reset();
+                    LeftLauncher.resetPID();
+                    RightLauncher.resetPID();
+                    LeftLauncher.startTrajectory(0.0f);
+                    RightLauncher.startTrajectory(0.0f);
+                    launcher_state = LauncherState::SAFE;
+                }
+            } else {
+                loading_stall_count = 0;
             }
             break;
         }
@@ -168,18 +222,29 @@ void launcher_auto_load() {
 
             if (LeftLauncher.isHomed() && RightLauncher.isHomed())
             {
-                bsp_buzzer_flash(1000, 0.8f, 200);
                 LeftLauncher.resetHome();
                 RightLauncher.resetHome();
                 LeftLauncher.resetPID();
                 RightLauncher.resetPID();
+                launcher_balance_reset();
+                bsp_buzzer_flash(1000, 0.8f, 50);      bsp_time_delay(100);
+                bsp_buzzer_flash(2000, 0.8f, 50);      bsp_time_delay(100);
+                bsp_buzzer_flash(3000, 0.8f, 50);
                 launcher_state = LauncherState::IDLE;
             }
             break;
         }
         case LauncherState::SAFE: {
-            //TO DO:
-
+            float correction = launcher_compute_balance();
+            LeftLauncher.update(0.005f, correction);
+            RightLauncher.update(0.005f, correction);
+            if (LeftLauncher.isArrived() && RightLauncher.isArrived()) {
+                bsp_buzzer_flash(3000, 0.8f, 200);
+                launcher_balance_reset();
+                LeftLauncher.resetPID();
+                RightLauncher.resetPID();
+                launcher_state = LauncherState::IDLE;
+            }
             break;
         }
     }
