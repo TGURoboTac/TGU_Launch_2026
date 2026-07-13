@@ -60,8 +60,8 @@ Motion RightLauncher(
     0.5);
 
 // ---------- 发射机构电机位置 ----------
-static float GM3508LeftPosition = 0.0;
-static float GM3508RightPosition = 0.0;
+static float M3508LeftPosition = 0.0;
+static float M3508RightPosition = 0.0;
 
 static float launcher_compute_balance() {
     float current_error = M_SwitchLeft.feedback.current + M_SwitchRight.feedback.current;
@@ -73,8 +73,8 @@ static LauncherState launcher_state = LauncherState::IDLE;
 
 //----------- 公开接口 ------------
 void Get_3508Position() {
-    GM3508LeftPosition = LeftLauncher.get_motor_total_position();
-    GM3508RightPosition = RightLauncher.get_motor_total_position();
+    M3508LeftPosition = LeftLauncher.get_motor_total_position();
+    M3508RightPosition = RightLauncher.get_motor_total_position();
 }
 
 void launcher_init() {
@@ -115,12 +115,12 @@ void launcher_manual_position(float left_position, float right_position) {
     float correction = launcher_compute_balance();
 
     left_AimPosition += left_position;
-    const float left_AimSpeed = M3508_SwitchLeftPID_position.update(GM3508LeftPosition, left_AimPosition + correction);
+    const float left_AimSpeed = M3508_SwitchLeftPID_position.update(M3508LeftPosition, left_AimPosition + correction);
     const float left_output = M3508_SwitchLeftPID.update(M_SwitchLeft.feedback.speed, left_AimSpeed);
     M_SwitchLeft.update(left_output);
 
     right_AimPosition += right_position;
-    const float right_AimSpeed = M3508_SwitchRightPID_position.update(GM3508RightPosition, right_AimPosition + correction);
+    const float right_AimSpeed = M3508_SwitchRightPID_position.update(M3508RightPosition, right_AimPosition + correction);
     const float right_output = M3508_SwitchRightPID.update(M_SwitchRight.feedback.speed, right_AimSpeed);
     M_SwitchRight.update(right_output);
 }
@@ -139,18 +139,21 @@ void Reset_launcher_state() {
     LeftLauncher.resetPID();
     RightLauncher.resetPID();
     launcher_balance_reset();
-    left_AimPosition = GM3508LeftPosition;
-    right_AimPosition = GM3508RightPosition;
+    left_AimPosition = M3508LeftPosition;
+    right_AimPosition = M3508RightPosition;
+}
+
+void DebugSend() {
+    vofa::send(E_UART_1,
+        launcher_state,
+        M_SwitchLeft.output, M_SwitchRight.output,
+        M_SwitchLeft.feedback.current, M_SwitchRight.feedback.current
+        );
 }
 
 // ---------- 自动上膛状态机 ----------
 void launcher_auto_load() {
-    vofa::send(E_UART_1,
-        LeftLauncher.getCurrentPosition(),
-        M_SwitchLeft.feedback.current, M_SwitchRight.feedback.current,
-        M_SwitchLeft.output, M_SwitchRight.output,
-        M_SwitchLeft.feedback.raw.temp, M_SwitchRight.feedback.raw.temp
-        );
+
     switch (launcher_state) {
 
         case LauncherState::IDLE:
@@ -196,8 +199,7 @@ void launcher_auto_load() {
                 LeftLauncher.resetPID();
                 RightLauncher.resetPID();
                 launcher_state = LauncherState::RETURN_TO_ZERO;
-            } else if ((abs(M_SwitchLeft.feedback.speed) < 1 && abs(M_SwitchRight.feedback.speed) < 1) &&
-                        abs(M_SwitchLeft.output) > 16000 && abs(M_SwitchRight.output) > 16000) {
+            } else if (abs(M_SwitchLeft.output) > 16000 && abs(M_SwitchRight.output) > 16000) {
                 loading_stall_count++;
                 if (loading_stall_count >= 10) {
                     loading_stall_count = 0;

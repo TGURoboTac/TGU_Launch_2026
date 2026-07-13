@@ -12,7 +12,7 @@ enum class ArmState {
     HOMING,
     MOVE_TO_REPAIR,
     MOVE_TO_LOAD,
-    RETURN_HOME,
+    LOADING_IS_OK,
     SAFE
 };
 
@@ -26,6 +26,8 @@ void Get_MotorPosition();
 void lifter_manual_position(float lifter_position);
 void lifter_manual_speed(float lifter_speed);
 void yall_manual_speed(float yall_speed);
+void yall_manual_position(float yall_position);
 void arm_offline_protect();
+void Reset_arm_state();
 
 #endif //TROBOT_ARM_H

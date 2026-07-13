@@ -19,6 +19,7 @@ enum class LauncherState {
 extern Motion LeftLauncher;
 extern Motion RightLauncher;
 
+void DebugSend();
 void Get_3508Position();
 void launcher_init();
 void launcher_auto_load();           // 状态机更新，在 task 循环中每周期调用

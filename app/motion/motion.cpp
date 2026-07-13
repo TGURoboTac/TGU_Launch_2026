@@ -61,26 +61,47 @@ float Motion::getCurrentPosition() const{     //获取当前电机机械位置
     return get_motor_total_position() - zero_position_;
 }
 
-void Motion::startTrajectory(float load_target){     //开启一条新轨迹
+void Motion::startTrajectory(float load_target){
     aim_position_ = load_target;
     target_position_ = getCurrentPosition();
+    total_travel_ = aim_position_ - target_position_;
 }
 
 void Motion::update(float step, float position_offset){
     float current = getCurrentPosition();
 
+    // ---- 目标接近终点时的线性降速 (deceleration ramp) ----
+    // 动机：匀速轨迹在终点瞬间停住会导致电机因惯性超调。
+    // 当前目标与终点的距离 < 总行程 × decel_ratio_ 时，
+    // step 按 remaining/decel_distance 等比缩小，目标平缓减速至接近零。
+    float effective_step = step;
+    float remaining = aim_position_ - target_position_;
+    float decel_distance = decel_ratio_ * std::abs(total_travel_);
+    constexpr float min_step_ratio = 0.02f; // 最小 step 比例，防止减到零导致永不到达
+
+    if (decel_distance > 1e-6f) {
+        float abs_remaining = std::abs(remaining);
+        if (abs_remaining < decel_distance) {
+            effective_step = step * (abs_remaining / decel_distance);
+            if (effective_step < step * min_step_ratio)
+                effective_step = step * min_step_ratio;
+        }
+    }
+
+    // ---- 匀速 ramp：target 以 step 向 aim 靠拢 ----
     if (target_position_ < aim_position_){
-        target_position_ += step;
+        target_position_ += effective_step;
 
         if (target_position_ > aim_position_)
             target_position_ = aim_position_;
     } else {
-        target_position_ -= step;
+        target_position_ -= effective_step;
 
         if (target_position_ < aim_position_)
             target_position_ = aim_position_;
     }
 
+    // ---- 级联 PID：位置环 → 速度环 → 电流环 ----
      float effective_target = target_position_ + position_offset;
      float speed_cmd = position_pid_.update(current, effective_target);
      float current_cmd = speed_pid_.update(motor_.feedback.speed, speed_cmd);

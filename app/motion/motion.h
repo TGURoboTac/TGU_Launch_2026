@@ -17,12 +17,14 @@ public:
                   float homing_speed, float stall_speed,
                   float stall_curent,
                   int stall_count_threshold,
-                  float position_tolerance)
+                  float position_tolerance,
+                  float decel_ratio = 0.0f)
         : motor_(motor), speed_pid_(speed_pid), position_pid_(position_pid),
           homing_speed_(homing_speed), stall_speed_(stall_speed),
           stall_current_(stall_curent),
           stall_count_threshold_(stall_count_threshold),
-          position_tolerance_(position_tolerance)
+          position_tolerance_(position_tolerance),
+          decel_ratio_(decel_ratio)
     {
     }
     /*
@@ -72,6 +74,8 @@ public:
     int stall_count_ = 0;      //连续超过阈值次数
     int stall_count_threshold_ = 0;      // 连续超过阈值次数（1ms/次 → 5ms 去抖）
     float position_tolerance_ = 0.0f;
+    float total_travel_ = 0.0f;     // 本次轨迹的总行程 (rad)，startTrajectory() 时计算，用于减速距离计算
+    float decel_ratio_ = 0.0f;      // 减速段占比 (0~1)，剩余距离 < total_travel_ * decel_ratio_ 时开始线性降速；0 表示不减速
 private:
 
 };

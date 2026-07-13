@@ -30,8 +30,12 @@
     for (;;) {
         // chassis_Debug();
         if (rc_ht10_data->swd == 1) {
-            motor_update(rc_ht10_data->rc_r[0] / 40.0, rc_ht10_data->rc_r[1] / 40.0, rc_ht10_data->rc_l[0] / 40.0);
-        }else {
+            if (rc_ht10_data->swc == 1) {
+                motor_update(rc_ht10_data->rc_r[0] / 40.0, rc_ht10_data->rc_r[1] / 40.0, rc_ht10_data->rc_l[0] / 40.0);
+            } else if (rc_ht10_data->swc == -1) {
+                motor_update(rc_ht10_data->rc_r[0] / 400.0, rc_ht10_data->rc_r[1] / 400.0, rc_ht10_data->rc_l[0] / 400.0);
+            }
+        } else {
             motor_update(0, 0, 0);
         }
         os::task::sleep(1);

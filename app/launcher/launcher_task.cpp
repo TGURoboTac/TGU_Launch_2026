@@ -28,7 +28,9 @@
     constexpr uint16_t TRIG_TIMEOUT_MS = 800;
 
     for (;;) {
+        DebugSend();
 
+        HAL_GPIO_WritePin(BIU_GPIO_Port, BIU_Pin, GPIO_PIN_SET);
         Get_3508Position();
         if (rc_ht10_data->swd == -1) {
             Fire(1000);
@@ -36,8 +38,8 @@
                 && rc_ht10_data->rc_l[1] * 1.25 + 1500 < 1000)
                 Fire(rc_ht10_data->rc_l[1] * 1.25 + 1500);
 
-            // ---- 自动上膛触发：swa 回中按键，检测边沿（0 → ±1）----
-            if (last_swa == 0 && rc_ht10_data->swa != 0 && rc_ht10_data->swb == 1 && LauncherTrigCount++ == 1) {
+            // ---- 自动上膛触发：swa 回中按键，检测边沿（0 → -1）----
+            if (last_swa == 0 && rc_ht10_data->swa == -1 && rc_ht10_data->swb == 1 && LauncherTrigCount++ == 1) {
                 LauncherTrigCount = 0;
                 trig_timeout = 0;
                 LauncherTriggerLoad();
