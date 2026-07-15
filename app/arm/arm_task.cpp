@@ -27,6 +27,7 @@ static float debug;
     constexpr uint16_t TRIG_TIMEOUT_MS = 800;
 
      for (;;) {
+         // ArmDebug();
          Get_MotorPosition();
          if (rc_ht10_data->swd == 0) {
              // ---- 遥控器边沿检测 ----
@@ -42,6 +43,8 @@ static float debug;
                  trig_timeout = 0;
              }
 
+             ArmSwbTick(last_swb, rc_ht10_data->swb);
+
              // ---- 自动装弹状态机：非手动模式时运行 ----
              if (rc_ht10_data->swb != -1) {
                  arm_auto_load();
@@ -49,18 +52,16 @@ static float debug;
 
              // ---- 手动模式：空闲时响应遥控器 ----
              if (rc_ht10_data->swb == -1) {
-                 if (last_swb != -1)
+                 if (last_swb != -1 && arm_get_state() == ArmState::IDLE)
                      Reset_arm_state();
                  if (rc_ht10_data->swc == 1) {
-                     // lifter_manual_speed(static_cast<float>(rc_ht10_data->rc_l[1]) / 1.f);
                      lifter_manual_position(static_cast<float>(rc_ht10_data->rc_l[1]) / 2000.f);
-                     // yall_manual_speed(static_cast<float>(rc_ht10_data->rc_r[0]) / 20.0f);
                      yall_manual_position(static_cast<float>(rc_ht10_data->rc_r[0]) / 80000.0f);
                  } else if (rc_ht10_data->swc == -1) {
                      MoveArm(rc_ht10_data->rc_l[0] * 1.25 + 1500,
                             rc_ht10_data->rc_r[1] * 1.25 + 1500);
                      Clamp(rc_ht10_data->rc_r[0] * 1.25 + 1500);
-                     vofa::send(E_UART_1, rc_ht10_data->rc_r[0] * 1.25 + 1500);
+                     // vofa::send(E_UART_1, rc_ht10_data->rc_r[0] * 1.25 + 1500);
                  }
              }
              last_swb = rc_ht10_data->swb;
@@ -68,7 +69,8 @@ static float debug;
              ArmTrigCount = 0;
              trig_timeout = 0;
              lifter_manual_speed(0.0f);
-             yall_manual_speed(0.0f);
+             if (rc_ht10_data->swd != -1)
+                 yall_manual_speed(0.0f);
          }
          arm_offline_protect();
          os::task::sleep(1);

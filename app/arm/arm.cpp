@@ -77,6 +77,8 @@ void arm_init() {
     HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_3);
 }
 
+uint8_t Trig_flag = false;
+
 void ArmTriggerLoad() {
     if (arm_state == ArmState::LOADING_IS_OK || arm_state == ArmState::IDLE) {
         arm_state = ArmState::HOMING;
@@ -84,6 +86,21 @@ void ArmTriggerLoad() {
         ArmLIFTER.resetPID();
         ArmYALL.resetHome();
         ArmYALL.resetPID();
+        Trig_flag = true;
+    }
+}
+
+void ArmSwbTick(int8_t last_swb, int8_t swb) {
+    if (!Trig_flag)
+        return;
+    if (!(last_swb == 0 && swb == -1))
+        return;
+
+    if (arm_state == ArmState::WAIT_REPAIR) {
+        arm_state = ArmState::MOVE_TO_REPAIR;
+    } else if (arm_state == ArmState::WAIT_LOAD) {
+        arm_state = ArmState::MOVE_TO_LOAD;
+        Trig_flag = false;
     }
 }
 
@@ -98,15 +115,22 @@ void lifter_manual_speed(float lifter_speed) {
 }
 
 float lifter_AimPosition = 0.0;
+
+void lifter_set_target(float target) {
+    lifter_AimPosition = target;
+}
+
+void lifter_update() {
+    const float AimSpeed = M3508_LifterPID_position.update(ArmLIFTER.getCurrentPosition(), lifter_AimPosition);
+    const float lifter_output = M3508_LifterPID.update(M_LIFTER.feedback.speed, AimSpeed);
+    M_LIFTER.update(lifter_output);
+}
+
 void lifter_manual_position(float lifter_position) {
     if (arm_state != ArmState::IDLE)
         return;
     lifter_AimPosition += lifter_position;
-    const float AimSpeed = M3508_LifterPID_position.update(ArmLIFTER.getCurrentPosition(), lifter_AimPosition);
-    const float lifter_output = M3508_LifterPID.update(M_LIFTER.feedback.speed, AimSpeed);
-    // vofa::send(E_UART_1,
-    //     lifter_AimPosition, ArmLIFTER.getCurrentPosition(), AimSpeed, lifter_output, arm_state);
-    M_LIFTER.update(lifter_output);
+    lifter_update();
 }
 
 void yall_manual_speed(float yall_speed) {
@@ -115,13 +139,22 @@ void yall_manual_speed(float yall_speed) {
 }
 
 float yall_AimPosition = 0.0;
-void yall_manual_position(float yall_position) {
-    yall_AimPosition += yall_position;
+
+bool yall_set_target(float target) {
+    yall_AimPosition = target;
+    return std::abs(target - ArmYALL.getCurrentPosition()) < 0.05;
+}
+
+void yall_update() {
     const float AimSpeed = GM6020BasePID_position.update(ArmYALL.getCurrentPosition(), yall_AimPosition);
     const float yall_output = GM6020BasePID.update(M_YALL.feedback.speed, AimSpeed);
     M_YALL.update(yall_output);
-    // vofa::send(E_UART_1,
-    //     yall_AimPosition, ArmYALL.getCurrentPosition(), AimSpeed, yall_output);
+    // vofa::send(E_UART_1, yall_AimPosition, ArmYALL.getCurrentPosition(), yall_output);
+}
+
+void yall_manual_position(float yall_position) {
+    yall_AimPosition += yall_position;
+    yall_update();
 }
 
 void arm_offline_protect() {
@@ -135,6 +168,10 @@ void Reset_arm_state() {
     ArmYALL.resetPID();
     lifter_AimPosition = ArmLIFTER.getCurrentPosition();
     yall_AimPosition = ArmYALL.getCurrentPosition();
+}
+
+void ArmDebug() {
+    // vofa::send(E_UART_1, M_YALL.feedback.angle, ArmYALL.get_motor_total_position(), ArmYALL.getCurrentPosition());
 }
 
 // ---------- 自动装修复模块状态机 ----------
@@ -168,8 +205,14 @@ void arm_auto_load() {
                 ArmYALL.resetPID();
                 ArmLIFTER.startTrajectory(300.0);
                 ArmYALL.startTrajectory(0.0);
-                arm_state = ArmState::MOVE_TO_REPAIR;
+                arm_state = ArmState::WAIT_REPAIR;
             }
+            break;
+        }
+
+        case ArmState::WAIT_REPAIR: {
+            ArmLIFTER.update(0.3);
+            ArmYALL.update(0.0f);
             break;
         }
 
@@ -186,8 +229,14 @@ void arm_auto_load() {
                 ArmYALL.resetPID();
                 ArmLIFTER.startTrajectory(0.0);
                 ArmYALL.startTrajectory(-M_PI);
-                arm_state = ArmState::MOVE_TO_LOAD;
+                arm_state = ArmState::WAIT_LOAD;
             }
+            break;
+        }
+
+        case ArmState::WAIT_LOAD: {
+            ArmLIFTER.update(0.3);
+            ArmYALL.update(0.01);
             break;
         }
 
