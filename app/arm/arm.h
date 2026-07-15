@@ -35,6 +35,8 @@ void yall_manual_position(float yall_position);
 bool yall_set_target(float target);
 void yall_update();
 void arm_offline_protect();
+void arm_lifter_stop();
+void arm_yall_stop();
 void Reset_arm_state();
 void ArmDebug();
 

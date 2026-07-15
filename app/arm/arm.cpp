@@ -153,6 +153,8 @@ void yall_update() {
 }
 
 void yall_manual_position(float yall_position) {
+    if (arm_state != ArmState::IDLE)
+        return;
     yall_AimPosition += yall_position;
     yall_update();
 }
@@ -160,6 +162,14 @@ void yall_manual_position(float yall_position) {
 void arm_offline_protect() {
     ArmLIFTER.motor_offline_protect();
     ArmYALL.motor_offline_protect();
+}
+
+void arm_lifter_stop() {
+    M_LIFTER.update(0);
+}
+
+void arm_yall_stop() {
+    M_YALL.update(0);
 }
 
 void Reset_arm_state() {
@@ -171,7 +181,7 @@ void Reset_arm_state() {
 }
 
 void ArmDebug() {
-    // vofa::send(E_UART_1, M_YALL.feedback.angle, ArmYALL.get_motor_total_position(), ArmYALL.getCurrentPosition());
+    vofa::send(E_UART_1, ArmYALL.getCurrentPosition());
 }
 
 // ---------- 自动装修复模块状态机 ----------

@@ -70,7 +70,7 @@
         } else {
             LauncherTrigCount = 0;
             trig_timeout = 0;
-            launcher_manual_speed(0, 0);
+            launcher_emergency_stop();
         }
         Launcher_offline_protect();
 

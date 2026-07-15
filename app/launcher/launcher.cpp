@@ -145,6 +145,11 @@ void Launcher_offline_protect() {
     RightLauncher.motor_offline_protect();
 }
 
+void launcher_emergency_stop() {
+    M_SwitchLeft.update(0);
+    M_SwitchRight.update(0);
+}
+
 void Reset_launcher_state() {
     launcher_state = LauncherState::IDLE;
     LeftLauncher.resetPID();

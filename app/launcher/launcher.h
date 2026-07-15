@@ -33,6 +33,7 @@ LauncherState launcher_get_state();  // 获取当前状态
 void Fire(uint32_t status);
 void launcher_balance_reset();        // 清除电流均衡 PID 积分
 void Launcher_offline_protect();    //离线保护
+void launcher_emergency_stop();
 void Reset_launcher_state();
 
 #endif //TROBOT_LAUNCHER_H

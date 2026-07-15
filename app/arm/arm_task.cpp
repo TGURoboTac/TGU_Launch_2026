@@ -52,26 +52,26 @@ static float debug;
 
              // ---- 手动模式：空闲时响应遥控器 ----
              if (rc_ht10_data->swb == -1) {
-                 if (last_swb != -1 && arm_get_state() == ArmState::IDLE)
-                     Reset_arm_state();
-                 if (rc_ht10_data->swc == 1) {
-                     lifter_manual_position(static_cast<float>(rc_ht10_data->rc_l[1]) / 2000.f);
-                     yall_manual_position(static_cast<float>(rc_ht10_data->rc_r[0]) / 80000.0f);
-                 } else if (rc_ht10_data->swc == -1) {
-                     MoveArm(rc_ht10_data->rc_l[0] * 1.25 + 1500,
-                            rc_ht10_data->rc_r[1] * 1.25 + 1500);
-                     Clamp(rc_ht10_data->rc_r[0] * 1.25 + 1500);
-                     // vofa::send(E_UART_1, rc_ht10_data->rc_r[0] * 1.25 + 1500);
-                 }
+                if (last_swb != -1) {
+                    Reset_arm_state();
+                }
+                if (rc_ht10_data->swc == 1) {
+                 lifter_manual_position(static_cast<float>(rc_ht10_data->rc_l[1]) / 2000.f);
+                 yall_manual_position(static_cast<float>(rc_ht10_data->rc_r[0]) / 80000.0f);
+                } else if (rc_ht10_data->swc == -1) {
+                 MoveArm(rc_ht10_data->rc_l[0] * 1.25 + 1500,
+                        rc_ht10_data->rc_r[1] * 1.25 + 1500);
+                 Clamp(rc_ht10_data->rc_r[0] * 1.25 + 1500);
+                }
              }
              last_swb = rc_ht10_data->swb;
-         } else {
-             ArmTrigCount = 0;
-             trig_timeout = 0;
-             lifter_manual_speed(0.0f);
-             if (rc_ht10_data->swd != -1)
-                 yall_manual_speed(0.0f);
-         }
+        } else {
+            ArmTrigCount = 0;
+            trig_timeout = 0;
+            arm_lifter_stop();
+            if (rc_ht10_data->swd != -1)
+                arm_yall_stop();
+        }
          arm_offline_protect();
          os::task::sleep(1);
      }
