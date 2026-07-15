@@ -20,12 +20,15 @@ extern Motion LeftLauncher;
 extern Motion RightLauncher;
 
 void DebugSend();
+void SetGate(uint32_t status);
 void Get_3508Position();
 void launcher_init();
 void launcher_auto_load();           // 状态机更新，在 task 循环中每周期调用
 void LauncherTriggerLoad();        // 触发自动上膛（从 IDLE 或 COMPLETED 状态）
 void launcher_manual_speed(float left_speed, float right_speed); // 手动速度控制 (rad/s)
 void launcher_manual_position(float left_position, float right_position);
+void launcher_set_target(float left_target, float right_target);
+void launcher_update();
 LauncherState launcher_get_state();  // 获取当前状态
 void Fire(uint32_t status);
 void launcher_balance_reset();        // 清除电流均衡 PID 积分

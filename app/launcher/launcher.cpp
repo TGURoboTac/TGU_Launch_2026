@@ -11,6 +11,7 @@
 #include "motion.h"
 #include "bsp/buzzer.h"
 #include "bsp/time.h"
+#include "arm.h"
 
 using namespace controller;
 
@@ -108,21 +109,31 @@ void launcher_manual_speed(float left_speed, float right_speed) {
 }
 
 float left_AimPosition, right_AimPosition;
-void launcher_manual_position(float left_position, float right_position) {
-    if (launcher_state != LauncherState::IDLE)
-        return;
 
+void launcher_set_target(float left_target, float right_target) {
+    left_AimPosition = left_target;
+    right_AimPosition = right_target;
+}
+
+void launcher_update() {
     float correction = launcher_compute_balance();
 
-    left_AimPosition += left_position;
     const float left_AimSpeed = M3508_SwitchLeftPID_position.update(M3508LeftPosition, left_AimPosition + correction);
     const float left_output = M3508_SwitchLeftPID.update(M_SwitchLeft.feedback.speed, left_AimSpeed);
     M_SwitchLeft.update(left_output);
 
-    right_AimPosition += right_position;
     const float right_AimSpeed = M3508_SwitchRightPID_position.update(M3508RightPosition, right_AimPosition + correction);
     const float right_output = M3508_SwitchRightPID.update(M_SwitchRight.feedback.speed, right_AimSpeed);
     M_SwitchRight.update(right_output);
+}
+
+void launcher_manual_position(float left_position, float right_position) {
+    if (launcher_state != LauncherState::IDLE)
+        return;
+
+    left_AimPosition += left_position;
+    right_AimPosition += right_position;
+    launcher_update();
 }
 
 void Fire(uint32_t status) {
@@ -144,11 +155,15 @@ void Reset_launcher_state() {
 }
 
 void DebugSend() {
-    vofa::send(E_UART_1,
-        launcher_state,
-        M_SwitchLeft.output, M_SwitchRight.output,
-        M_SwitchLeft.feedback.current, M_SwitchRight.feedback.current
-        );
+    // vofa::send(E_UART_1,
+    //     launcher_state,
+    //     M_SwitchLeft.output, M_SwitchRight.output,
+    //     M_SwitchLeft.feedback.current, M_SwitchRight.feedback.current
+    //     );
+}
+
+void SetGate(uint32_t status) {
+    __HAL_TIM_SetCompare(&htim2, TIM_CHANNEL_1, status);
 }
 
 // ---------- 自动上膛状态机 ----------
@@ -173,8 +188,8 @@ void launcher_auto_load() {
                 LeftLauncher.resetPID();
                 RightLauncher.resetPID();
                 //设定此时位置零点
-                LeftLauncher.startTrajectory(12.0);
-                RightLauncher.startTrajectory(-12.0);
+                LeftLauncher.startTrajectory(11.5);
+                RightLauncher.startTrajectory(-11.5);
                 launcher_balance_reset();
                 launcher_state = LauncherState::LOADING_REVERSE;
             }
@@ -193,6 +208,7 @@ void launcher_auto_load() {
             // 两电机都到位后完成
             if (LeftLauncher.isArrived() && RightLauncher.isArrived())
             {
+                yall_set_target(-1.0f);
                 loading_stall_count = 0;
                 bsp_buzzer_flash(3000, 0.8f, 200);
                 launcher_balance_reset();
