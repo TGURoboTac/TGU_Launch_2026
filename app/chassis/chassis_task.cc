@@ -5,6 +5,10 @@
 #include "utils/os.h"
 #include "rc/ht10.h"
 #include "chassis.h"
+#include "bsp/adc.h"
+#include "bsp/adc.h"
+#include "bsp/bsp.h"
+#include "bsp/time.h"
 /*
 *  麦克纳姆轮
 *  ^ vy
@@ -28,6 +32,12 @@
     chassis_init();
     const auto rc_ht10_data = rc::ht10::data();
     for (;;) {
+        if (bsp_adc_vbus() > 30.f) {
+            chassis_disable();
+            os::task::sleep(100);
+            bsp_sys_reset();
+        }
+        // print_speed_chassis();
         // chassis_Debug();
         if (rc_ht10_data->swd == 1) {
             if (rc_ht10_data->swc == 1) {

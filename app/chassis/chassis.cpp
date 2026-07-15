@@ -7,6 +7,8 @@
 #include "motor/dji.h"
 #include "chassis_power.h"
 #include <algorithm>
+#include "utils/os.h"
+#include "bsp/bsp.h"
 #include "chassis_power.h"
 
 #include "utils/vofa.h"
@@ -31,7 +33,10 @@ void chassis_Debug() {
     M_LU.update(M3508_ChassisPID_LU.update(M_LU.feedback.speed, 5));
     // vofa::send(E_UART_1, M_LU.output, M_LU.feedback.speed);
 }
-
+void print_speed_chassis() {
+    // vofa::send(E_UART_1, M_LU.feedback.speed, M_RU.feedback.speed, M_RD.feedback.speed, M_LD.feedback.speed);
+    // vofa::send(E_UART_1, M_LU.feedback.timestamp, M_LD.feedback.timestamp, M_RD.feedback.timestamp, M_RU.feedback.timestamp);
+}
 // void motor_update(double vx_t, double vy_t, double r_t) {
 //     //底盘解算
 //     double w1 = r_t + vy_t * M_SQRT2 + vx_t * M_SQRT2;
@@ -99,4 +104,13 @@ void chassis_init() {
     M_RU.init();
     M_RD.init();
     M_LD.init();
+}
+void chassis_stop() {
+    M_LU.update(0), M_RU.update(0), M_RD.update(0), M_LD.update(0);
+}
+void chassis_disable() {
+    M_LU.disable(), M_RU.disable(), M_RD.disable(), M_LD.disable();
+}
+void chassis_pid_clear() {
+    M3508_ChassisPID_LD.clear(), M3508_ChassisPID_LU.clear(), M3508_ChassisPID_RD.clear(), M3508_ChassisPID_RU.clear();
 }
