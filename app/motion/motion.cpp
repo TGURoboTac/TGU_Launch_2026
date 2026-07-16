@@ -20,13 +20,33 @@ bool Motion::homeMotor()
     if (homed_)
         return true;
 
+    // ---- 速度斜坡：指令从 0 逐步逼近 homing_speed_ ----
+    // 避免启动瞬间大电流冲击被误判为堵转
+    bool ramp_done = true;
+    if (homing_ramp_step_ > 0.0f) {
+        if (homing_cmd_speed_ < homing_speed_) {
+            homing_cmd_speed_ += homing_ramp_step_;
+            if (homing_cmd_speed_ > homing_speed_)
+                homing_cmd_speed_ = homing_speed_;
+        } else if (homing_cmd_speed_ > homing_speed_) {
+            homing_cmd_speed_ -= homing_ramp_step_;
+            if (homing_cmd_speed_ < homing_speed_)
+                homing_cmd_speed_ = homing_speed_;
+        }
+        ramp_done = homing_cmd_speed_ == homing_speed_;
+    } else {
+        homing_cmd_speed_ = homing_speed_;
+    }
+
     // 速度环控制
-    float current_cmd = speed_pid_.update(motor_.feedback.speed, homing_speed_);
+    float current_cmd = speed_pid_.update(motor_.feedback.speed, homing_cmd_speed_);
 
     motor_.update(current_cmd);
 
-    // 堵转检测
-    if (std::abs(motor_.feedback.current) > stall_current_ && std::abs(motor_.feedback.speed) < stall_speed_){
+    // 堵转检测（斜坡加速阶段不检测，防止启动电流误判）
+    if (ramp_done
+        && std::abs(motor_.feedback.current) > stall_current_
+        && std::abs(motor_.feedback.speed) < stall_speed_){
         stall_count_++;
     } else {
         stall_count_ = 0;
@@ -37,6 +57,7 @@ bool Motion::homeMotor()
     {
         stall_count_ = 0;
         homed_ = true;
+        homing_cmd_speed_ = 0.0f;
         zero_position_ = get_motor_total_position();
         motor_.update(0);
         speed_pid_.clear();
@@ -55,6 +76,7 @@ void Motion::resetHome()    //重置回零标志位
 {
     homed_ = false;
     stall_count_ = 0;
+    homing_cmd_speed_ = 0.0f;
 }
 
 float Motion::getCurrentPosition() const{     //获取当前电机机械位置
@@ -69,6 +91,14 @@ void Motion::startTrajectory(float load_target){
 
 void Motion::update(float step, float position_offset){
     float current = getCurrentPosition();
+
+    if (step == 0.0f) {
+        float effective_target = current + position_offset;
+        float speed_cmd = position_pid_.update(current, effective_target);
+        float current_cmd = speed_pid_.update(motor_.feedback.speed, speed_cmd);
+        motor_.update(current_cmd);
+        return;
+    }
 
     // ---- 目标接近终点时的线性降速 (deceleration ramp) ----
     // 动机：匀速轨迹在终点瞬间停住会导致电机因惯性超调。
@@ -106,6 +136,11 @@ void Motion::update(float step, float position_offset){
      float speed_cmd = position_pid_.update(current, effective_target);
      float current_cmd = speed_pid_.update(motor_.feedback.speed, speed_cmd);
      motor_.update(current_cmd);
+}
+
+void Motion::holdCurrentPosition() {
+    target_position_ = getCurrentPosition();
+    aim_position_ = target_position_;
 }
 
 bool Motion::isArrived() const {      //判断电机是否到达目标位置
