@@ -6,9 +6,7 @@
 #include "rc/ht10.h"
 #include "chassis.h"
 #include "bsp/adc.h"
-#include "bsp/adc.h"
-#include "bsp/bsp.h"
-#include "bsp/time.h"
+
 /*
 *  麦克纳姆轮
 *  ^ vy
@@ -34,12 +32,11 @@
     for (;;) {
         if (bsp_adc_vbus() > 30.f) {
             chassis_disable();
-            os::task::sleep(100);
             bsp_sys_reset();
         }
         // print_speed_chassis();
         // chassis_Debug();
-        if (rc_ht10_data->swd == 1) {
+        if (rc_ht10_data->swd == 0) {
             if (rc_ht10_data->swc == 1) {
                 motor_update(rc_ht10_data->rc_r[0] / 40.0, rc_ht10_data->rc_r[1] / 40.0, rc_ht10_data->rc_l[0] / 40.0);
             } else if (rc_ht10_data->swc == -1) {

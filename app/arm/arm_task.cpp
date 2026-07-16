@@ -27,9 +27,9 @@ static float debug;
     constexpr uint16_t TRIG_TIMEOUT_MS = 800;
 
      for (;;) {
-         // ArmDebug();
+         ArmDebug();
          Get_MotorPosition();
-         if (rc_ht10_data->swd == 0) {
+         if (rc_ht10_data->swd == 1) {
              // ---- 遥控器边沿检测 ----
              if (last_swa == 0 && rc_ht10_data->swa != 0 && rc_ht10_data->swb == 1 && ArmTrigCount++ == 1) {
                  ArmTrigCount = 0;
