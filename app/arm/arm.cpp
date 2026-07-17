@@ -8,7 +8,6 @@
 #include "motor/dji.h"
 #include "controller/pid.h"
 #include "utils/vofa.h"
-#include "motion.h"
 #include "bsp/buzzer.h"
 #include "bsp/time.h"
 
@@ -20,8 +19,8 @@ motor::dji M_YALL("motor_YALL", motor::dji::GM6020,
 motor::dji M_LIFTER("motor_FILTER", motor::dji::M3508,
                     motor::dji::param_t{.id = 1, .port = E_CAN_1, .mode = motor::dji::CURRENT}, -1, 1);
 
-pid GM6020BasePID(650, 0.7, 0, 7000, 16384); //最大速度17左右
-pid GM6020BasePID_position(30, 0, 0.1, 3000, 10000);
+pid GM6020BasePID(900, 0.7, 0, 7000, 16384); //最大速度17左右
+pid GM6020BasePID_position(15, 0, 0.1, 3000, 18);
 pid M3508_LifterPID(150, 0, 0, 4000, 16384);
 pid M3508_LifterPID_position(15, 0, 0, 3000, 400);
 
@@ -37,8 +36,8 @@ Motion ArmYALL(
     0.5f,
     1.0,
     10,
-    0.05,
-    0.65f);
+    0.1,
+    0.2f);
 
 Motion ArmLIFTER(
     M_LIFTER,
@@ -48,8 +47,8 @@ Motion ArmLIFTER(
     0.5f,
     5.0f,
     10,
-    1.5,
-    0.1f);
+    15,
+    0.5f);
 
 // ---------- 状态机变量 ----------
 static ArmState arm_state = ArmState::IDLE;
@@ -77,30 +76,13 @@ void arm_init() {
     HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_3);
 }
 
-uint8_t Trig_flag = false;
-
 void ArmTriggerLoad() {
-    if (arm_state == ArmState::LOADING_IS_OK || arm_state == ArmState::IDLE) {
+    if (arm_state == ArmState::IDLE) {
         arm_state = ArmState::HOMING;
         ArmLIFTER.resetHome();
         ArmLIFTER.resetPID();
         ArmYALL.resetHome();
         ArmYALL.resetPID();
-        Trig_flag = true;
-    }
-}
-
-void ArmSwbTick(int8_t last_swb, int8_t swb) {
-    if (!Trig_flag)
-        return;
-    if (!(last_swb == 0 && swb == -1))
-        return;
-
-    if (arm_state == ArmState::WAIT_REPAIR) {
-        arm_state = ArmState::MOVE_TO_REPAIR;
-    } else if (arm_state == ArmState::WAIT_LOAD) {
-        arm_state = ArmState::MOVE_TO_LOAD;
-        Trig_flag = false;
     }
 }
 
@@ -115,13 +97,14 @@ void lifter_manual_speed(float lifter_speed) {
 }
 
 float lifter_AimPosition = 0.0;
+static bool lifter_manual_synced_ = false; // 手动模式首次同步标志，防止 lifter_AimPosition 默认值 0 导致冲目标
 
 void lifter_set_target(float target) {
     lifter_AimPosition = target;
 }
 
 void lifter_update() {
-    const float AimSpeed = M3508_LifterPID_position.update(ArmLIFTER.getCurrentPosition(), lifter_AimPosition);
+    const float AimSpeed = M3508_LifterPID_position.update(ArmLIFTER.get_motor_total_position(), lifter_AimPosition);
     const float lifter_output = M3508_LifterPID.update(M_LIFTER.feedback.speed, AimSpeed);
     M_LIFTER.update(lifter_output);
 }
@@ -129,6 +112,11 @@ void lifter_update() {
 void lifter_manual_position(float lifter_position) {
     if (arm_state != ArmState::IDLE)
         return;
+    // 首次同步手动目标到当前实际位置
+    if (!lifter_manual_synced_ && M_LIFTER.feedback.timestamp != 0) {
+        lifter_AimPosition = ArmLIFTER.getCurrentPosition();
+        lifter_manual_synced_ = true;
+    }
     lifter_AimPosition += lifter_position;
     lifter_update();
 }
@@ -146,10 +134,9 @@ bool yall_set_target(float target) {
 }
 
 void yall_update() {
-    const float AimSpeed = GM6020BasePID_position.update(ArmYALL.getCurrentPosition(), yall_AimPosition);
+    const float AimSpeed = GM6020BasePID_position.update(ArmYALL.get_motor_total_position(), yall_AimPosition);
     const float yall_output = GM6020BasePID.update(M_YALL.feedback.speed, AimSpeed);
     M_YALL.update(yall_output);
-    // vofa::send(E_UART_1, yall_AimPosition, ArmYALL.getCurrentPosition(), yall_output);
 }
 
 void yall_manual_position(float yall_position) {
@@ -164,24 +151,16 @@ void arm_offline_protect() {
     ArmYALL.motor_offline_protect();
 }
 
-void arm_lifter_stop() {
-    M_LIFTER.update(0);
-}
-
-void arm_yall_stop() {
-    M_YALL.update(0);
-}
-
 void Reset_arm_state() {
     arm_state = ArmState::IDLE;
     ArmLIFTER.resetPID();
     ArmYALL.resetPID();
-    lifter_AimPosition = ArmLIFTER.getCurrentPosition();
-    yall_AimPosition = ArmYALL.getCurrentPosition();
+    lifter_AimPosition = ArmLIFTER.get_motor_total_position();
+    yall_AimPosition = ArmYALL.get_motor_total_position();
 }
 
 void ArmDebug() {
-    vofa::send(E_UART_1, ArmYALL.getCurrentPosition());
+    vofa::send(E_UART_1, M_YALL.feedback.speed, M_YALL.output);
 }
 
 // ---------- 自动装修复模块状态机 ----------
@@ -191,15 +170,14 @@ void ArmDebug() {
 #define arm_0 1850
 #define arm_1 1500
 
-void arm_auto_load() {
+static uint8_t loading_step = 0;
+static uint32_t loading_timer = 0;
 
-    // vofa::send(E_UART_1, ArmYALL.getCurrentPosition(), ArmYALL.target_position_,
-    //                             ArmLIFTER.getCurrentPosition(), ArmLIFTER.target_position_,
-    //                             arm_state, M_LIFTER.feedback.speed);
+void arm_auto_load() {
 
     switch (arm_state) {
         case ArmState::IDLE:
-            ArmYALL.update(0.0f);
+            MoveArm(clamp_0, arm_0);
             break;
 
         case ArmState::HOMING: {
@@ -207,68 +185,93 @@ void arm_auto_load() {
             ArmYALL.homeMotor();
 
             if (ArmLIFTER.isHomed() && ArmYALL.isHomed()) {
-                bsp_buzzer_flash(1000, 0.8f, 200);
-                Clamp(1400); //打开夹爪
+                bsp_buzzer_flash(3000, 0.8f, 100);
+                Clamp(1600); //打开夹爪
                 ArmLIFTER.resetHome();
                 ArmYALL.resetHome();
                 ArmLIFTER.resetPID();
                 ArmYALL.resetPID();
-                ArmLIFTER.startTrajectory(300.0);
-                ArmYALL.startTrajectory(0.0);
-                arm_state = ArmState::WAIT_REPAIR;
+                ArmLIFTER.startTrajectory(293.0);
+                arm_state = ArmState::MOVE_TO_REPAIR;
             }
             break;
         }
 
-        case ArmState::WAIT_REPAIR: {
-            ArmLIFTER.update(0.3);
-            ArmYALL.update(0.0f);
-            break;
-        }
-
         case ArmState::MOVE_TO_REPAIR: {
-            ArmLIFTER.update(0.3);
-            ArmYALL.update(0.0f);
-            MoveArm(clamp_0, arm_0);
+            ArmLIFTER.update(0.15);
 
             if (ArmLIFTER.isArrived()) {
-                bsp_buzzer_flash(1000, 0.8f, 200);
-                Clamp(1200); //关闭夹爪
+                bsp_buzzer_flash(3000, 0.8f, 100);
+                Clamp(1000); //关闭夹爪
                 bsp_time_delay(300);
                 ArmLIFTER.resetPID();
                 ArmYALL.resetPID();
                 ArmLIFTER.startTrajectory(0.0);
                 ArmYALL.startTrajectory(-M_PI);
-                arm_state = ArmState::WAIT_LOAD;
+                arm_state = ArmState::MOVE_TO_LOAD;
             }
             break;
         }
 
-        case ArmState::WAIT_LOAD: {
-            ArmLIFTER.update(0.3);
-            ArmYALL.update(0.01);
-            break;
-        }
-
         case ArmState::MOVE_TO_LOAD: {
-            ArmLIFTER.update(0.3);
-            ArmYALL.update(0.01);
+            ArmLIFTER.update(0.15);
 
-            if (ArmLIFTER.isArrived() && ArmYALL.isArrived()) {
-                bsp_time_delay(1000);
-                bsp_buzzer_flash(1000, 0.8f, 200);
-                MoveArm(clamp_90, arm_1);
-                Clamp(1400);    //打开夹爪
-                bsp_time_delay(1000);
-                arm_state = ArmState::LOADING_IS_OK;
+            if (ArmLIFTER.isArrived()) {
+                ArmYALL.update(0.002);
+                if (ArmYALL.isArrived()) {
+                    bsp_buzzer_flash(3000, 0.8f, 100);
+                    loading_step = 0;
+                    loading_timer = bsp_time_get_ms();
+                    arm_state = ArmState::LOADING_IS_OK;
+                }
             }
             break;
         }
 
         case ArmState::LOADING_IS_OK: {
             ArmLIFTER.update(0.0f);
-            ArmYALL.update(0.0f);
+            ArmYALL.setPosition(ArmYALL.getCurrentPosition());
+
+            switch (loading_step) {
+            case 0:
+                MoveArm(clamp_90, arm_1);
+                loading_timer = bsp_time_get_ms();
+                loading_step = 1;
+                break;
+            case 1:
+                if (bsp_time_get_ms() - loading_timer >= 1000) {
+                    Clamp(1600);
+                    loading_timer = bsp_time_get_ms();
+                    loading_step = 2;
+                }
+                break;
+            case 2:
+                if (bsp_time_get_ms() - loading_timer >= 2000) {
+                    bsp_buzzer_flash(3000, 0.8f, 100);
+                    loading_step = 3;
+                }
+                break;
+            case 3:
+                ArmLIFTER.resetPID();
+                ArmYALL.resetPID();
+                arm_state = ArmState::RETURN_TO_ZERO;
+                break;
+            }
             break;
+        }
+
+        case ArmState::RETURN_TO_ZERO: {
+            ArmYALL.homeMotor();
+            ArmLIFTER.homeMotor();
+
+            if (ArmLIFTER.isHomed() && ArmYALL.isHomed()) {
+                bsp_buzzer_flash(3000, 0.8f, 100);
+                ArmLIFTER.resetHome();
+                ArmYALL.resetHome();
+                ArmLIFTER.resetPID();
+                ArmYALL.resetPID();
+                arm_state = ArmState::IDLE;
+            }
         }
 
         case ArmState::SAFE: {

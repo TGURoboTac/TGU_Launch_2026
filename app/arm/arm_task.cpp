@@ -31,7 +31,7 @@ static float debug;
          Get_MotorPosition();
          if (rc_ht10_data->swd == 1) {
              // ---- 遥控器边沿检测 ----
-             if (last_swa == 0 && rc_ht10_data->swa != 0 && rc_ht10_data->swb == 1 && ArmTrigCount++ == 1) {
+             if (last_swa == 0 && rc_ht10_data->swa == -1 && rc_ht10_data->swb == 1 && ArmTrigCount++ == 1) {
                  ArmTrigCount = 0;
                  trig_timeout = 0;
                  ArmTriggerLoad();
@@ -42,8 +42,6 @@ static float debug;
                  ArmTrigCount = 0;
                  trig_timeout = 0;
              }
-
-             ArmSwbTick(last_swb, rc_ht10_data->swb);
 
              // ---- 自动装弹状态机：非手动模式时运行 ----
              if (rc_ht10_data->swb != -1) {
@@ -68,9 +66,6 @@ static float debug;
         } else {
             ArmTrigCount = 0;
             trig_timeout = 0;
-            arm_lifter_stop();
-            if (rc_ht10_data->swd != -1)
-                arm_yall_stop();
         }
          arm_offline_protect();
          os::task::sleep(1);
