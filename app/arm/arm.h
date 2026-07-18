@@ -26,17 +26,14 @@ void arm_auto_load();
 ArmState arm_get_state();
 void Clamp(uint32_t status);
 void MoveArm(uint32_t ClampRoll_T2C3, uint32_t ClampPitch_T2C1);
-void Get_MotorPosition();
 void lifter_manual_position(float lifter_position);
 void lifter_manual_speed(float lifter_speed);
-void lifter_set_target(float target);
-void lifter_update();
 void yall_manual_speed(float yall_speed);
 void yall_manual_position(float yall_position);
-bool yall_set_target(float target);
-void yall_update();
+bool yall_set_position(float target);
 void arm_offline_protect();
 void Reset_arm_state();
+void arm_manual_sync();
 void ArmDebug();
 
 #endif //TROBOT_ARM_H

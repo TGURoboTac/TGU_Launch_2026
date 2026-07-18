@@ -7,6 +7,7 @@
 #include "arm.h"
 #include "bsp/time.h"
 #include "rc/ht10.h"
+#include "gimbal.h"
 
 [[noreturn]] void launcher_task(void *args) {
 
@@ -16,6 +17,7 @@
     // });
 
     launcher_init();
+    gimbal_init();
     const auto rc_ht10_data = rc::ht10::data();
 
     // 记录 swa/swb 上一拍状态，用于边沿检测
@@ -29,8 +31,8 @@
         DebugSend();
         Get_3508Position();
         if (rc_ht10_data->swd == -1) {
-            yall_update();
-            Fire(1000);
+            yall_manual_speed(0);
+            Fire(1300);
             if (launcher_get_state() == LauncherState::IDLE
                 && rc_ht10_data->rc_l[1] * 1.25 + 1500 < 1000)
                 Fire(rc_ht10_data->rc_l[1] * 1.25 + 1500);
@@ -43,7 +45,7 @@
                     LauncherTriggerLoad();
                 }
                 if (rc_ht10_data->swc == -1) {
-                    if(yall_set_target(0.363f)) {   //机械臂yall肘挪到发射台上方
+                    if(gimbal_set_position(0.363f)) {   //云台yall轴移动到发射台上方(待测定）
                         SetGate(500);
                     }
                 } else if (rc_ht10_data->swc == 1) {
@@ -59,8 +61,13 @@
 
             // ---- 手动模式：空闲或完成时响应遥控器 ----
             if (rc_ht10_data->swb == -1) {
-                if (last_swb != -1)
+                launch_manual_sync();
+                gimbal_manual_sync();
+                if (last_swb != -1) {
                     Reset_launcher_state();
+                    Reset_gimbal();
+                }
+                gimbal_manual_position(static_cast<float>(rc_ht10_data->rc_l[1]) / 80000.0f);
                 if (rc_ht10_data->swc == -1) {
                     launcher_manual_position(static_cast<float>(rc_ht10_data->rc_l[0]) / 80000.0f, static_cast<float>(rc_ht10_data->rc_r[0]) / 80000.0f);
                 } else if (rc_ht10_data->swc == 1) {
@@ -77,7 +84,7 @@
             launcher_emergency_stop();
         }
         Launcher_offline_protect();
-
+        gimbal_offline_protect();
         os::task::sleep(1);
     }
 }

@@ -6,6 +6,7 @@
 #include "rc/ht10.h"
 #include "chassis.h"
 #include "bsp/adc.h"
+#include "arm.h"
 
 /*
 *  麦克纳姆轮
@@ -30,6 +31,8 @@
     chassis_init();
     const auto rc_ht10_data = rc::ht10::data();
     for (;;) {
+
+        vofa::send(E_UART_1, rc_ht10_data->rc_l[1], rc_ht10_data->rc_l[0]);
         if (bsp_adc_vbus() > 30.f) {
             chassis_disable();
             bsp_sys_reset();
@@ -37,6 +40,7 @@
         // print_speed_chassis();
         // chassis_Debug();
         if (rc_ht10_data->swd == 0) {
+            yall_manual_speed(0);
             if (rc_ht10_data->swc == 1) {
                 motor_update(rc_ht10_data->rc_r[0] / 40.0, rc_ht10_data->rc_r[1] / 40.0, rc_ht10_data->rc_l[0] / 40.0);
             } else if (rc_ht10_data->swc == -1) {

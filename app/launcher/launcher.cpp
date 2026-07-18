@@ -12,6 +12,7 @@
 #include "bsp/buzzer.h"
 #include "bsp/time.h"
 #include "arm.h"
+#include "gimbal.h"
 
 using namespace controller;
 
@@ -44,28 +45,27 @@ Motion LeftLauncher(
     M_SwitchLeft,
     M3508_SwitchLeftPID,
     M3508_SwitchLeftPID_position,
-    -3.0f,
+    -5.0f,
     1.0f,
-    2.5,
+    3.0,
     10,
-    0.5);
+    0.65,
+    0.4f,
+    0.09f);
 
 Motion RightLauncher(
     M_SwitchRight,
     M3508_SwitchRightPID,
     M3508_SwitchRightPID_position,
-    3.0f,
+    5.0f,
     1.0f,
-    2.5,
+    3.0,
     10,
-    0.5);
+    0.65,
     0.4f,
     0.09f);
 
 // ---------- 发射机构电机位置 ----------
-static float M3508LeftPosition = 0.0;
-static float M3508RightPosition = 0.0;
-
 static float launcher_compute_balance() {
     float current_error = M_SwitchLeft.feedback.current + M_SwitchRight.feedback.current;
     return current_balance_pid.update(current_error, 0.0f);
@@ -76,8 +76,6 @@ static LauncherState launcher_state = LauncherState::IDLE;
 
 //----------- 公开接口 ------------
 void Get_3508Position() {
-    M3508LeftPosition = LeftLauncher.get_motor_total_position();
-    M3508RightPosition = RightLauncher.get_motor_total_position();
 }
 
 void launcher_init() {
@@ -94,6 +92,9 @@ void LauncherTriggerLoad() {
         LeftLauncher.resetPID();
         RightLauncher.resetPID();
         launcher_balance_reset();
+        LeftLauncher.manual_reset_sync();
+        RightLauncher.manual_reset_sync();
+        gimbal_manual_reset_sync();
     }
 }
 
@@ -104,37 +105,21 @@ LauncherState launcher_get_state() {
 void launcher_manual_speed(float left_speed, float right_speed) {
     if (launcher_state != LauncherState::IDLE)
         return;
-    M_SwitchLeft.update(
-        M3508_SwitchLeftPID.update(M_SwitchLeft.feedback.speed, left_speed));
-    M_SwitchRight.update(
-        M3508_SwitchRightPID.update(M_SwitchRight.feedback.speed, right_speed));
-}
-
-float left_AimPosition, right_AimPosition;
-
-void launcher_set_target(float left_target, float right_target) {
-    left_AimPosition = left_target;
-    right_AimPosition = right_target;
+    LeftLauncher.manual_speed_update(left_speed);
+    RightLauncher.manual_speed_update(right_speed);
 }
 
 void launcher_update() {
-    float correction = launcher_compute_balance();
-
-    const float left_AimSpeed = M3508_SwitchLeftPID_position.update(M3508LeftPosition, left_AimPosition + correction);
-    const float left_output = M3508_SwitchLeftPID.update(M_SwitchLeft.feedback.speed, left_AimSpeed);
-    M_SwitchLeft.update(left_output);
-
-    const float right_AimSpeed = M3508_SwitchRightPID_position.update(M3508RightPosition, right_AimPosition + correction);
-    const float right_output = M3508_SwitchRightPID.update(M_SwitchRight.feedback.speed, right_AimSpeed);
-    M_SwitchRight.update(right_output);
+    const float correction = launcher_compute_balance();
+    LeftLauncher.manual_position_update(correction);
+    RightLauncher.manual_position_update(correction);
 }
 
 void launcher_manual_position(float left_position, float right_position) {
     if (launcher_state != LauncherState::IDLE)
         return;
-
-    left_AimPosition += left_position;
-    right_AimPosition += right_position;
+    LeftLauncher.manual_delta_position(left_position);
+    RightLauncher.manual_delta_position(right_position);
     launcher_update();
 }
 
@@ -148,8 +133,8 @@ void Launcher_offline_protect() {
 }
 
 void launcher_emergency_stop() {
-    M_SwitchLeft.update(0);
-    M_SwitchRight.update(0);
+    LeftLauncher.stop();
+    RightLauncher.stop();
 }
 
 void Reset_launcher_state() {
@@ -157,16 +142,19 @@ void Reset_launcher_state() {
     LeftLauncher.resetPID();
     RightLauncher.resetPID();
     launcher_balance_reset();
-    left_AimPosition = M3508LeftPosition;
-    right_AimPosition = M3508RightPosition;
+}
+
+void launch_manual_sync() {
+    LeftLauncher.manual_sync_position();
+    RightLauncher.manual_sync_position();
 }
 
 void DebugSend() {
     // vofa::send(E_UART_1,
-    //     launcher_state,
-    //     M_SwitchLeft.output, M_SwitchRight.output,
-    //     M_SwitchLeft.feedback.current, M_SwitchRight.feedback.current
-    //     );
+        // launcher_state,
+        // RightLauncher.getCurrentPosition()
+        // RightLauncher.aim_position_ - RightLauncher.target_position_
+        // );
 }
 
 void SetGate(uint32_t status) {
@@ -226,7 +214,7 @@ void launcher_auto_load() {
             // 两电机都到位后完成
             if (LeftLauncher.isArrived() && RightLauncher.isArrived())
             {
-                yall_set_target(-0.72f);
+                gimbal_set_position(-0.72f);
                 loading_stall_count = 0;
                 launcher_balance_reset();
                 LeftLauncher.resetPID();
@@ -272,7 +260,7 @@ void launcher_auto_load() {
             break;
         }
         case LauncherState::SAFE: {
-            yall_set_target(-0.6f);
+            gimbal_set_position(-0.6f);
             float correction = launcher_compute_balance();
             LeftLauncher.update(0.005f, correction);
             RightLauncher.update(0.005f, correction);

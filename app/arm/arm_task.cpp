@@ -28,7 +28,6 @@ static float debug;
 
      for (;;) {
          ArmDebug();
-         Get_MotorPosition();
          if (rc_ht10_data->swd == 1) {
              // ---- 遥控器边沿检测 ----
              if (last_swa == 0 && rc_ht10_data->swa == -1 && rc_ht10_data->swb == 1 && ArmTrigCount++ == 1) {
@@ -50,6 +49,7 @@ static float debug;
 
              // ---- 手动模式：空闲时响应遥控器 ----
              if (rc_ht10_data->swb == -1) {
+                 arm_manual_sync();
                 if (last_swb != -1) {
                     Reset_arm_state();
                 }

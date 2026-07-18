@@ -92,14 +92,6 @@ void Motion::startTrajectory(float load_target){
 void Motion::update(float step, float position_offset){
     float current = getCurrentPosition();
 
-    if (step == 0.0f) {
-        float effective_target = current + position_offset;
-        float speed_cmd = position_pid_.update(current, effective_target);
-        float current_cmd = speed_pid_.update(motor_.feedback.speed, speed_cmd);
-        motor_.update(current_cmd);
-        return;
-    }
-
     // ---- 目标接近终点时的线性降速 (deceleration ramp) ----
     // 动机：匀速轨迹在终点瞬间停住会导致电机因惯性超调。
     // 当前目标与终点的距离 < 总行程 × decel_ratio_ 时，
@@ -138,11 +130,6 @@ void Motion::update(float step, float position_offset){
      motor_.update(current_cmd);
 }
 
-void Motion::holdCurrentPosition() {
-    target_position_ = getCurrentPosition();
-    aim_position_ = target_position_;
-}
-
 bool Motion::isArrived() const {      //判断电机是否到达目标位置
     return std::abs(aim_position_ - getCurrentPosition()) < position_tolerance_;
 }
@@ -150,6 +137,56 @@ bool Motion::isArrived() const {      //判断电机是否到达目标位置
 void Motion::resetPID() const {     //重置 PID
     position_pid_.clear();
     speed_pid_.clear();
+}
+
+void Motion::setTarget(float position) const {
+    resetPID();
+    const float aim_speed = position_pid_.update(getCurrentPosition(), position);
+    const float output = speed_pid_.update(motor_.feedback.speed, aim_speed);
+    motor_.update(output);
+}
+
+void Motion::manual_set_position(float target) {
+    manual_target_ = target;
+}
+
+void Motion::manual_delta_position(float delta) {
+    manual_target_ += delta;
+}
+
+void Motion::manual_position_update(float position_offset) const {
+    const float current = get_motor_total_position();
+    const float effective_target = manual_target_ + position_offset;
+    const float speed_cmd = position_pid_.update(current, effective_target); // 位置环 → 速度环
+    const float current_cmd = speed_pid_.update(motor_.feedback.speed, speed_cmd);
+    if (manual_synced_) {
+        motor_.update(current_cmd);
+    }
+}
+
+void Motion::manual_speed_update(float speed) const {
+    const float current_cmd = speed_pid_.update(motor_.feedback.speed, speed); // 速度环 → 电流环
+    motor_.update(current_cmd);
+}
+
+bool Motion::manual_is_arrived(float tolerance) const {
+    return std::abs(manual_target_ - get_motor_total_position()) < tolerance;
+}
+
+void Motion::manual_sync_position() {
+    if (!manual_synced_ && motor_.feedback.timestamp != 0) {
+        manual_target_ = get_motor_total_position(); // 对齐到当前实际位置}
+        manual_synced_ = true;
+    }
+}
+
+void Motion::manual_reset_sync() {
+    manual_synced_ = false;
+}
+
+void Motion::stop() const {
+    speed_pid_.clear();
+    motor_.update(0); // 发送零电流指令
 }
 
 void Motion::motor_offline_protect() const {

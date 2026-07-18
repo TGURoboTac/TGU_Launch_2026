@@ -35,7 +35,9 @@ add_library(app OBJECT ${SOURCES}
         arm/arm.h
         arm/arm_task.cpp
         motion/motion.cpp
-        motion/motion.h)
+        motion/motion.h
+        gimbal/gimbal.cpp
+        gimbal/gimbal.h)
 target_include_directories(app PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
 
 target_link_libraries(app PUBLIC components bsp m)

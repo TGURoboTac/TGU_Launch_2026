@@ -24,8 +24,6 @@ pid GM6020BasePID_position(15, 0, 0.1, 3000, 18);
 pid M3508_LifterPID(150, 0, 0, 4000, 16384);
 pid M3508_LifterPID_position(15, 0, 0, 3000, 400);
 
-static float M3508Position = 0.0;
-static float GM6020Position = 0.0;
 
 // ----------- 机械臂定义 -------------
 Motion ArmYALL(
@@ -63,11 +61,6 @@ void MoveArm(uint32_t ClampRoll_T2C3, uint32_t ClampPitch_T2C1) {
     __HAL_TIM_SetCompare(&htim2, TIM_CHANNEL_1, ClampPitch_T2C1);
 }
 
-void Get_MotorPosition() {
-    M3508Position = ArmLIFTER.get_motor_total_position();
-    GM6020Position = ArmYALL.get_motor_total_position();
-}
-
 void arm_init() {
     M_YALL.init();
     M_LIFTER.init();
@@ -83,6 +76,8 @@ void ArmTriggerLoad() {
         ArmLIFTER.resetPID();
         ArmYALL.resetHome();
         ArmYALL.resetPID();
+        ArmLIFTER.manual_reset_sync();
+        ArmYALL.manual_reset_sync();
     }
 }
 
@@ -91,59 +86,30 @@ ArmState arm_get_state() {
 }
 
 void lifter_manual_speed(float lifter_speed) {
-    float SpeedOutput =  M3508_LifterPID.update(M_LIFTER.feedback.speed, lifter_speed);
-    M_LIFTER.update(SpeedOutput);
-    // vofa::send(E_UART_1, M_LIFTER.output);
-}
-
-float lifter_AimPosition = 0.0;
-static bool lifter_manual_synced_ = false; // 手动模式首次同步标志，防止 lifter_AimPosition 默认值 0 导致冲目标
-
-void lifter_set_target(float target) {
-    lifter_AimPosition = target;
-}
-
-void lifter_update() {
-    const float AimSpeed = M3508_LifterPID_position.update(ArmLIFTER.get_motor_total_position(), lifter_AimPosition);
-    const float lifter_output = M3508_LifterPID.update(M_LIFTER.feedback.speed, AimSpeed);
-    M_LIFTER.update(lifter_output);
+    ArmLIFTER.manual_speed_update(lifter_speed);
 }
 
 void lifter_manual_position(float lifter_position) {
     if (arm_state != ArmState::IDLE)
         return;
-    // 首次同步手动目标到当前实际位置
-    if (!lifter_manual_synced_ && M_LIFTER.feedback.timestamp != 0) {
-        lifter_AimPosition = ArmLIFTER.getCurrentPosition();
-        lifter_manual_synced_ = true;
-    }
-    lifter_AimPosition += lifter_position;
-    lifter_update();
+    ArmLIFTER.manual_delta_position(lifter_position);
+    ArmLIFTER.manual_position_update();
 }
 
 void yall_manual_speed(float yall_speed) {
-    float output = GM6020BasePID.update(M_YALL.feedback.speed, yall_speed);
-    M_YALL.update(output);
+    ArmYALL.manual_speed_update(yall_speed);
 }
 
-float yall_AimPosition = 0.0;
-
-bool yall_set_target(float target) {
-    yall_AimPosition = target;
+bool yall_set_position(float target) {
+    ArmYALL.manual_set_position(target);
     return std::abs(target - ArmYALL.getCurrentPosition()) < 0.05;
-}
-
-void yall_update() {
-    const float AimSpeed = GM6020BasePID_position.update(ArmYALL.get_motor_total_position(), yall_AimPosition);
-    const float yall_output = GM6020BasePID.update(M_YALL.feedback.speed, AimSpeed);
-    M_YALL.update(yall_output);
 }
 
 void yall_manual_position(float yall_position) {
     if (arm_state != ArmState::IDLE)
         return;
-    yall_AimPosition += yall_position;
-    yall_update();
+    ArmYALL.manual_delta_position(yall_position);
+    ArmYALL.manual_position_update();
 }
 
 void arm_offline_protect() {
@@ -155,8 +121,11 @@ void Reset_arm_state() {
     arm_state = ArmState::IDLE;
     ArmLIFTER.resetPID();
     ArmYALL.resetPID();
-    lifter_AimPosition = ArmLIFTER.get_motor_total_position();
-    yall_AimPosition = ArmYALL.get_motor_total_position();
+}
+
+void arm_manual_sync() {
+    ArmLIFTER.manual_sync_position();
+    ArmYALL.manual_sync_position();
 }
 
 void ArmDebug() {
@@ -230,7 +199,7 @@ void arm_auto_load() {
 
         case ArmState::LOADING_IS_OK: {
             ArmLIFTER.update(0.0f);
-            ArmYALL.setPosition(ArmYALL.getCurrentPosition());
+            ArmYALL.setTarget(ArmYALL.getCurrentPosition());
 
             switch (loading_step) {
             case 0:

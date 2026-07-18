@@ -51,7 +51,7 @@ extern "C" [[noreturn]] void app_entrance(void *args) {
     os::task::static_create(launcher_task, nullptr, "launcher_task", 1024, os::task::Priority::HIGH);
     os::task::static_create(arm_task, nullptr, "arm_task", 1024, os::task::Priority::MEDIUM);
 
-    int count = 0;
+    // int count = 0;
     uint8_t CarTrigCount = 0;
     static float can_current = 0.0f;
     static float can_voltage = 0.0f;
@@ -75,9 +75,8 @@ extern "C" [[noreturn]] void app_entrance(void *args) {
     for (;;) {
         if (can_new_data) {
             can_new_data = false;
-            vofa::send(E_UART_1, static_cast<double>(can_current), static_cast<double>(can_voltage),
-                static_cast<double>(can_current) * static_cast<double>(can_voltage));
-            bsp_uart_printf(E_UART_1, "C:%.3f,V:%.3f\r\n", static_cast<double>(can_current), static_cast<double>(can_voltage));
+        //     vofa::send(E_UART_1, static_cast<double>(can_current), static_cast<double>(can_voltage),
+        //         static_cast<double>(can_current) * static_cast<double>(can_voltage));
         }
 
         if (last_swa == 0 && rc_ht10_data->swa == 1) {
@@ -97,9 +96,9 @@ extern "C" [[noreturn]] void app_entrance(void *args) {
 
         last_swa = rc_ht10_data->swa;
 
+        // vofa::send(E_UART_1, bsp_adc_vbus());
         if (bsp_adc_vbus() < 11.4) {
-            if (++count == 10)
-                // count = 0, bsp_buzzer_flash(2500, 0.5f, 50);
+            // if (++count == 10) count = 0, bsp_buzzer_flash(2500, 0.5f, 50);
             bsp_led_set(static_cast<uint8_t>(std::abs(255 * ((static_cast<float>(bsp_time_get_ms() % 600) - 300) / 300.f))), 0, 0);
             bsp_iwdg_refresh();
             os::task::sleep(5);

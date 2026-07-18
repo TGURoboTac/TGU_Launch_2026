@@ -57,6 +57,30 @@ public:
 
     void resetPID() const;  //重置电机 PID
 
+    void setTarget(float position) const; //固定目标位置 (使用getcurrentPosition坐标系)
+
+    /*
+     *  手动控制（使用 motor total position 坐标系）
+     */
+    void manual_set_position(float target);                       // 设置绝对目标位置
+
+    void manual_delta_position(float delta);                       // 增量调整目标
+
+    void manual_position_update(float position_offset = 0.0f) const; // 位置环 PID 更新，position_offset 用于双电机电流均衡
+
+    void manual_speed_update(float speed) const;                    // 直接速度环控制
+
+    [[nodiscard]] bool manual_is_arrived(float tolerance) const; // 判断是否到达手动目标
+
+    void manual_sync_position();                                 // 同步目标到当前实际位置
+
+    void manual_reset_sync();                                    // 重置手动同步标志，下次 manual_sync_position 时重新对齐
+
+    /*
+     *  急停
+     */
+    void stop() const;
+
     /*
      *  离线保护
      */
@@ -80,6 +104,8 @@ public:
     float decel_ratio_ = 0.0f;      // 减速段占比 (0~1)，剩余距离 < total_travel_ * decel_ratio_ 时开始线性降速；0 表示不减速
     float homing_ramp_step_ = 0.0f; // 回零速度斜坡步长 (rad/s 每次调用)，0 表示不使用斜坡直接给目标速度
     float homing_cmd_speed_ = 0.0f; // 回零当前速度指令，斜坡从 0 逐步加速到 homing_speed_
+    float manual_target_ = 0.0f;     // 手动控制目标位置 (raw motor position)
+    bool manual_synced_ = false;
 private:
 
 };
