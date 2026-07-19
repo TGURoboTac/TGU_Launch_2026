@@ -188,8 +188,8 @@ void launcher_auto_load() {
                 LeftLauncher.resetPID();
                 RightLauncher.resetPID();
                 //设定此时位置零点
-                LeftLauncher.startTrajectory(11.0);
-                RightLauncher.startTrajectory(-11.0);
+                LeftLauncher.startTrajectory(11.8);
+                RightLauncher.startTrajectory(-11.8);
                 launcher_balance_reset();
                 if (homing_counter == 1) {
                     homing_counter = 0;

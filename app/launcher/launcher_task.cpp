@@ -34,8 +34,7 @@
         // while (!Gimbal.isHomed())
         //     os::task::sleep(1);
 
-        if (rc_ht10_data->swd == -1) {
-            yall_manual_speed(0);
+        if (rc_ht10_data->swd == 0) {
             Fire(1300);
             if (launcher_get_state() == LauncherState::IDLE && rc_ht10_data->rc_l[1] * 1.25 + 1500 < 1000)
                 Fire(rc_ht10_data->rc_l[1] * 1.25 + 1500);
@@ -63,30 +62,30 @@
             if (rc_ht10_data->swb == 1) {
                 if (last_swb != 1) {
                     launcher_reset_sync();
-                    gimbal_reset_sync();
+                    // gimbal_reset_sync();
                 }
             }
             last_swb = rc_ht10_data->swb;
 
             // ---- 手动模式：空闲或完成时响应遥控器 ----
-            if (rc_ht10_data->swb == -1) {
-                launch_manual_sync();
-                gimbal_manual_sync();
-                if (last_swb != -1) {
-                    Reset_launcher_state();
-                    Reset_gimbal();
-                }
-                gimbal_manual_position(static_cast<float>(rc_ht10_data->rc_l[0]) / 80000.0f);
-                // gimbal_manual_speed(static_cast<float>(rc_ht10_data->rc_l[0]) / 40.0f);
-                if (rc_ht10_data->swc == -1) {
-                    launcher_manual_position(static_cast<float>(rc_ht10_data->rc_l[0]) / 80000.0f, static_cast<float>(rc_ht10_data->rc_r[0]) / 80000.0f);
-                } else if (rc_ht10_data->swc == 1) {
-                    launcher_manual_position(static_cast<float>(rc_ht10_data->rc_r[0]) / 80000.0f, -(static_cast<float>(rc_ht10_data->rc_r[0]) / 80000.0f));
-                }
-            } else if (rc_ht10_data->swb == 1) {
+            // if (rc_ht10_data->swb == -1) {
+                // launch_manual_sync();
+                // gimbal_manual_sync();
+                // if (last_swb != -1) {
+                //     Reset_launcher_state();
+                //     // Reset_gimbal();
+                // }
+                // gimbal_manual_position(static_cast<float>(rc_ht10_data->rc_l[0]) / 80000.0f);
+                // // gimbal_manual_speed(static_cast<float>(rc_ht10_data->rc_l[0]) / 40.0f);
+                // if (rc_ht10_data->swc == -1) {
+                //     launcher_manual_position(static_cast<float>(rc_ht10_data->rc_l[0]) / 80000.0f, static_cast<float>(rc_ht10_data->rc_r[0]) / 80000.0f);
+                // } else if (rc_ht10_data->swc == 1) {
+                //     launcher_manual_position(static_cast<float>(rc_ht10_data->rc_r[0]) / 80000.0f, -(static_cast<float>(rc_ht10_data->rc_r[0]) / 80000.0f));
+                // }
+            // } else if (rc_ht10_data->swb == 1) {
                 // ---- 自动上膛状态机：非空闲时持续运行 ---- //
                 launcher_auto_load();
-            }
+            // }
         } else {
             LauncherTrigCount = 0;
             trig_timeout = 0;

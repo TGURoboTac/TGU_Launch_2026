@@ -51,7 +51,7 @@ public:
 
     void startTrajectory(float load_target); //开启一条新轨迹
 
-    void update(float step, float position_offset = 0.0f);    //更新电机位置，position_offset 用于双电机电流均衡的外部位置偏置
+    float update(float step, float position_offset = 0.0f);    //更新电机位置，position_offset 用于双电机电流均衡的外部位置偏置
 
     [[nodiscard]] bool isArrived() const;   //判断电机是否达到目标位置标志位
 

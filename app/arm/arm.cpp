@@ -10,6 +10,7 @@
 #include "utils/vofa.h"
 #include "bsp/buzzer.h"
 #include "bsp/time.h"
+#include "utils/os.h"
 
 using namespace controller;
 
@@ -34,7 +35,7 @@ Motion ArmYALL(
     0.5f,
     1.0,
     10,
-    0.2,
+    0.5,
     0.2f);
 
 Motion ArmLIFTER(
@@ -81,6 +82,11 @@ void ArmTriggerLoad() {
     }
 }
 
+void ArmWaitLoad() {
+    if (arm_state == ArmState::WAITING)
+        arm_state = ArmState::GET;
+}
+
 ArmState arm_get_state() {
     return arm_state;
 }
@@ -112,6 +118,11 @@ void yall_manual_position(float yall_position) {
     ArmYALL.manual_position_update();
 }
 
+void arm_stop() {
+    ArmYALL.update(0.0f);
+    ArmLIFTER.update(0.0f);
+}
+
 void arm_offline_protect() {
     ArmLIFTER.motor_offline_protect();
     ArmYALL.motor_offline_protect();
@@ -130,25 +141,30 @@ void arm_manual_sync() {
 
 void ArmDebug() {
     vofa::send(E_UART_1,
-        ArmYALL.getCurrentPosition(),
-        M_YALL.output);
+        ArmLIFTER.getCurrentPosition(),
+        ArmLIFTER.aim_position_
+        );
 }
 
 // ---------- 自动装修复模块状态机 ----------
 
 #define clamp_0 950
 #define clamp_90 1600
-#define arm_0 1850
-#define arm_1 1500
+#define arm_0 1870
+#define arm_1 1450
 
 static uint8_t loading_step = 0;
 static uint32_t loading_timer = 0;
-static uint8_t double_loading = 0;
+bool repair = false;
+bool doubleLoadFlag = false;
+float yall_output = 0;
 
 void arm_auto_load() {
 
     switch (arm_state) {
         case ArmState::IDLE:
+            ArmLIFTER.update(0.0f);
+            ArmYALL.update(0.0f);
             MoveArm(clamp_0, arm_0);
             break;
 
@@ -163,14 +179,35 @@ void arm_auto_load() {
                 ArmYALL.resetHome();
                 ArmLIFTER.resetPID();
                 ArmYALL.resetPID();
-                ArmLIFTER.startTrajectory(293.0);
+                ArmLIFTER.startTrajectory(320.0);
+                ArmYALL.startTrajectory(0.0f);
                 arm_state = ArmState::MOVE_TO_REPAIR;
             }
             break;
         }
 
         case ArmState::MOVE_TO_REPAIR: {
-            ArmLIFTER.update(0.15);
+            ArmLIFTER.update(0.15f);
+            ArmYALL.update(0.0f);
+
+            if (ArmLIFTER.isArrived()) {
+                bsp_buzzer_flash(3000, 0.8f, 100);
+                ArmYALL.resetPID();
+                ArmLIFTER.resetPID();
+                arm_state = ArmState::WAITING;
+            }
+            break;
+        }
+
+        case ArmState::WAITING: {
+            ArmYALL.update(0.0f);
+            ArmLIFTER.update(0.0f);
+            break;
+        }
+
+        case ArmState::GET: {
+            ArmYALL.update(0.0f);
+            ArmLIFTER.update(0.0f);
 
             if (ArmLIFTER.isArrived()) {
                 bsp_buzzer_flash(3000, 0.8f, 100);
@@ -179,7 +216,7 @@ void arm_auto_load() {
                 ArmLIFTER.resetPID();
                 ArmYALL.resetPID();
                 ArmLIFTER.startTrajectory(0.0);
-                ArmYALL.startTrajectory(-3.25);
+                ArmYALL.startTrajectory(-3.5);
                 arm_state = ArmState::MOVE_TO_LOAD;
             }
             break;
@@ -194,6 +231,8 @@ void arm_auto_load() {
                     bsp_buzzer_flash(3000, 0.8f, 100);
                     loading_step = 0;
                     loading_timer = bsp_time_get_ms();
+                    ArmLIFTER.resetPID();
+                    ArmYALL.resetPID();
                     arm_state = ArmState::LOADING_IS_OK;
                 }
             }
@@ -202,7 +241,7 @@ void arm_auto_load() {
 
         case ArmState::LOADING_IS_OK: {
             ArmLIFTER.update(0.0f);
-            ArmYALL.setTarget(ArmYALL.getCurrentPosition());
+            ArmYALL.update(0.0f);
 
             switch (loading_step) {
             case 0:
@@ -226,43 +265,41 @@ void arm_auto_load() {
             case 3:
                 ArmLIFTER.resetPID();
                 ArmYALL.resetPID();
-                    if (double_loading++ == 1) {
-                        double_loading = 0;
-                        ArmYALL.startTrajectory(0.0f);
-                        ArmLIFTER.startTrajectory(0.0f);
-                        arm_state = ArmState::RETURN_TO_ZERO;
-                    } else if (double_loading == 0) {
-                        ArmYALL.startTrajectory(0.0f);
-                        ArmLIFTER.startTrajectory(0.0f);
-                        arm_state = ArmState::WAITING;
-                    }
+                ArmYALL.startTrajectory(-1.4f);
+                ArmLIFTER.startTrajectory(0.0f);
+                arm_state = ArmState::END;
                 break;
             }
             break;
         }
 
-        case ArmState::WAITING: {
+        case ArmState::END: {
             ArmLIFTER.update(0.15f);
             ArmYALL.update(0.004);
 
             if (ArmLIFTER.isArrived() && ArmYALL.isArrived()) {
                 bsp_buzzer_flash(3000, 0.8f, 100);
+                Clamp(1000);
                 ArmLIFTER.resetPID();
                 ArmYALL.resetPID();
                 arm_state = ArmState::IDLE;
-            }
-        }
 
-        case ArmState::RETURN_TO_ZERO: {
-            ArmLIFTER.update(0.15f);
-            ArmYALL.update(0.004);
-
-            if (ArmLIFTER.isArrived() && ArmYALL.isArrived()) {
-                bsp_buzzer_flash(3000, 0.8f, 100);
-                ArmLIFTER.resetPID();
-                ArmYALL.resetPID();
-                arm_state = ArmState::IDLE;
+                // if (double_loading == 1) {
+                //     double_loading = 0;
+                //     ArmYALL.startTrajectory(-1.58f);
+                //     ArmLIFTER.startTrajectory(0.0f);
+                //     arm_state = ArmState::END;
+                // } else if (double_loading == 0) {
+                //     if (doubleLoadFlag) {
+                //         doubleLoadFlag = false;
+                //         double_loading++;
+                //         ArmYALL.startTrajectory(0.0f);
+                //         ArmLIFTER.startTrajectory(293.0);
+                //         arm_state = ArmState::MOVE_TO_REPAIR;
+                //     }
+                // }
             }
+            break;
         }
 
         case ArmState::SAFE: {

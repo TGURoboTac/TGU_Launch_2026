@@ -89,7 +89,7 @@ void Motion::startTrajectory(float load_target){
     total_travel_ = aim_position_ - target_position_;
 }
 
-void Motion::update(float step, float position_offset){
+float Motion::update(float step, float position_offset){
     float current = getCurrentPosition();
 
     // ---- 目标接近终点时的线性降速 (deceleration ramp) ----
@@ -128,6 +128,8 @@ void Motion::update(float step, float position_offset){
      float speed_cmd = position_pid_.update(current, effective_target);
      float current_cmd = speed_pid_.update(motor_.feedback.speed, speed_cmd);
      motor_.update(current_cmd);
+
+    return current_cmd;
 }
 
 bool Motion::isArrived() const {      //判断电机是否到达目标位置

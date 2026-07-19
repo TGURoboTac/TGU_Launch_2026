@@ -40,7 +40,7 @@
         // print_speed_chassis();
         // chassis_Debug();
         if (rc_ht10_data->swd == 0) {
-            yall_manual_speed(0);
+            // yall_manual_speed(0);
             if (rc_ht10_data->swc == 1) {
                 motor_update(rc_ht10_data->rc_r[0] / 40.0, rc_ht10_data->rc_r[1] / 40.0, rc_ht10_data->rc_l[0] / 40.0);
             }

@@ -5,6 +5,8 @@
 #include "arm.h"
 #include "rc/ht10.h"
 #include <cstdio>
+
+#include "arm_math_types.h"
 #include "bsp/time.h"
 #include "utils/os.h"
 
@@ -27,19 +29,24 @@ static float debug;
 
      for (;;) {
          ArmDebug();
-         if (rc_ht10_data->swd == 1) {
+         if (rc_ht10_data->swd == 0) {
              // ---- 遥控器边沿检测 ----
              if (last_swa == 0 && rc_ht10_data->swa == -1 && rc_ht10_data->swb == 1 && ArmTrigCount++ == 1) {
                  ArmTrigCount = 0;
                  trig_timeout = 0;
                  ArmTriggerLoad();
              }
-             last_swa = rc_ht10_data->swa;
 
              if (ArmTrigCount > 0 && (rc_ht10_data->swb != 1 || ++trig_timeout > TRIG_TIMEOUT_MS)) {
                  ArmTrigCount = 0;
                  trig_timeout = 0;
              }
+
+             if (last_swa == 0 && rc_ht10_data->swa == 1) {
+                 ArmWaitLoad();
+             }
+
+             last_swa = rc_ht10_data->swa;
 
              // ---- 自动装弹状态机：非手动模式时运行 ----
              if (rc_ht10_data->swb != -1) {

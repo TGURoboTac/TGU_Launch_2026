@@ -11,18 +11,23 @@
 enum class ArmState {
     IDLE,   //空闲
     HOMING, //返回零点
-    MOVE_TO_REPAIR, //移动到火种夹取区
+    MOVE_TO_REPAIR,
+    WAITING,
+    GET,
     MOVE_TO_LOAD,   //移动到装弹区
     LOADING_IS_OK,  //装弹完成
-    WAITING,    //等待第二次装弹
-    RETURN_TO_ZERO, //回到零点
+    END,    //等待第二次装弹
     SAFE    //触发电机保护
 };
 
 extern Motion ArmYALL;
+extern bool repair;
+extern bool doubleLoadFlag;
+
 
 void arm_init();
 void ArmTriggerLoad();
+void ArmWaitLoad();
 void arm_auto_load();
 ArmState arm_get_state();
 void Clamp(uint32_t status);
@@ -32,6 +37,7 @@ void lifter_manual_speed(float lifter_speed);
 void yall_manual_speed(float yall_speed);
 void yall_manual_position(float yall_position);
 bool yall_set_position(float target);
+void arm_stop();
 void arm_offline_protect();
 void Reset_arm_state();
 void arm_manual_sync();
