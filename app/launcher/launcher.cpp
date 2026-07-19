@@ -46,11 +46,11 @@ Motion LeftLauncher(
     M3508_SwitchLeftPID,
     M3508_SwitchLeftPID_position,
     -5.0f,
-    1.0f,
-    3.0,
-    10,
-    0.65,
-    0.4f,
+    0.5f,
+    4.0f,
+    50,
+    0.6f,
+    0.6f,
     0.09f);
 
 Motion RightLauncher(
@@ -58,11 +58,11 @@ Motion RightLauncher(
     M3508_SwitchRightPID,
     M3508_SwitchRightPID_position,
     5.0f,
-    1.0f,
-    3.0,
-    10,
-    0.65,
-    0.4f,
+    0.5f,
+    4.0f,
+    50,
+    0.6f,
+    0.6f,
     0.09f);
 
 // ---------- 发射机构电机位置 ----------
@@ -75,9 +75,6 @@ static float launcher_compute_balance() {
 static LauncherState launcher_state = LauncherState::IDLE;
 
 //----------- 公开接口 ------------
-void Get_3508Position() {
-}
-
 void launcher_init() {
     HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_3);
     M_SwitchLeft.init();
@@ -92,9 +89,9 @@ void LauncherTriggerLoad() {
         LeftLauncher.resetPID();
         RightLauncher.resetPID();
         launcher_balance_reset();
-        LeftLauncher.manual_reset_sync();
-        RightLauncher.manual_reset_sync();
-        gimbal_manual_reset_sync();
+        // LeftLauncher.manual_reset_sync();
+        // RightLauncher.manual_reset_sync();
+        // gimbal_manual_reset_sync();
     }
 }
 
@@ -149,16 +146,21 @@ void launch_manual_sync() {
     RightLauncher.manual_sync_position();
 }
 
+void launcher_reset_sync() {
+    LeftLauncher.manual_reset_sync();
+    RightLauncher.manual_reset_sync();
+}
+
 void DebugSend() {
     // vofa::send(E_UART_1,
-        // launcher_state,
-        // RightLauncher.getCurrentPosition()
-        // RightLauncher.aim_position_ - RightLauncher.target_position_
-        // );
+    //     launcher_state,
+    //     RightLauncher.getCurrentPosition(), LeftLauncher.getCurrentPosition(),
+    //     -(RightLauncher.aim_position_ - RightLauncher.target_position_), LeftLauncher.aim_position_ - LeftLauncher.target_position_
+    //     );
 }
 
 void SetGate(uint32_t status) {
-    __HAL_TIM_SetCompare(&htim2, TIM_CHANNEL_1, status);
+    // __HAL_TIM_SetCompare(&htim2, TIM_CHANNEL_1, status);
 }
 
 // ---------- 自动上膛状态机 ----------
@@ -214,7 +216,7 @@ void launcher_auto_load() {
             // 两电机都到位后完成
             if (LeftLauncher.isArrived() && RightLauncher.isArrived())
             {
-                gimbal_set_position(-0.72f);
+                gimbal_home = true;
                 loading_stall_count = 0;
                 launcher_balance_reset();
                 LeftLauncher.resetPID();
@@ -260,7 +262,6 @@ void launcher_auto_load() {
             break;
         }
         case LauncherState::SAFE: {
-            gimbal_set_position(-0.6f);
             float correction = launcher_compute_balance();
             LeftLauncher.update(0.005f, correction);
             RightLauncher.update(0.005f, correction);

@@ -32,7 +32,7 @@
     const auto rc_ht10_data = rc::ht10::data();
     for (;;) {
 
-        vofa::send(E_UART_1, rc_ht10_data->rc_l[1], rc_ht10_data->rc_l[0]);
+        // vofa::send(E_UART_1, rc_ht10_data->rc_l[1], rc_ht10_data->rc_l[0]);
         if (bsp_adc_vbus() > 30.f) {
             chassis_disable();
             bsp_sys_reset();
@@ -43,8 +43,6 @@
             yall_manual_speed(0);
             if (rc_ht10_data->swc == 1) {
                 motor_update(rc_ht10_data->rc_r[0] / 40.0, rc_ht10_data->rc_r[1] / 40.0, rc_ht10_data->rc_l[0] / 40.0);
-            } else if (rc_ht10_data->swc == -1) {
-                motor_update(rc_ht10_data->rc_r[0] / 400.0, rc_ht10_data->rc_r[1] / 400.0, rc_ht10_data->rc_l[0] / 400.0);
             }
         } else {
             motor_update(0, 0, 0);

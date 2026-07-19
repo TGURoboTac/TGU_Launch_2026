@@ -7,7 +7,6 @@
 #include <cstdio>
 #include "bsp/time.h"
 #include "utils/os.h"
-#include "utils/vofa.h"
 
 static float debug;
 

@@ -17,7 +17,7 @@ using namespace controller;
 motor::dji M_YALL("motor_YALL", motor::dji::GM6020,
                   motor::dji::param_t{.id = 1, .port = E_CAN_1, .mode = motor::dji::CURRENT});
 motor::dji M_LIFTER("motor_FILTER", motor::dji::M3508,
-                    motor::dji::param_t{.id = 1, .port = E_CAN_1, .mode = motor::dji::CURRENT}, -1, 1);
+                    motor::dji::param_t{.id = 2, .port = E_CAN_1, .mode = motor::dji::CURRENT}, -1, 1);
 
 pid GM6020BasePID(900, 0.7, 0, 7000, 16384); //最大速度17左右
 pid GM6020BasePID_position(15, 0, 0.1, 3000, 18);
@@ -34,7 +34,7 @@ Motion ArmYALL(
     0.5f,
     1.0,
     10,
-    0.1,
+    0.2,
     0.2f);
 
 Motion ArmLIFTER(
@@ -129,7 +129,9 @@ void arm_manual_sync() {
 }
 
 void ArmDebug() {
-    vofa::send(E_UART_1, M_YALL.feedback.speed, M_YALL.output);
+    vofa::send(E_UART_1,
+        ArmYALL.getCurrentPosition(),
+        M_YALL.output);
 }
 
 // ---------- 自动装修复模块状态机 ----------
@@ -141,6 +143,7 @@ void ArmDebug() {
 
 static uint8_t loading_step = 0;
 static uint32_t loading_timer = 0;
+static uint8_t double_loading = 0;
 
 void arm_auto_load() {
 
@@ -176,7 +179,7 @@ void arm_auto_load() {
                 ArmLIFTER.resetPID();
                 ArmYALL.resetPID();
                 ArmLIFTER.startTrajectory(0.0);
-                ArmYALL.startTrajectory(-M_PI);
+                ArmYALL.startTrajectory(-3.25);
                 arm_state = ArmState::MOVE_TO_LOAD;
             }
             break;
@@ -186,7 +189,7 @@ void arm_auto_load() {
             ArmLIFTER.update(0.15);
 
             if (ArmLIFTER.isArrived()) {
-                ArmYALL.update(0.002);
+                ArmYALL.update(0.004);
                 if (ArmYALL.isArrived()) {
                     bsp_buzzer_flash(3000, 0.8f, 100);
                     loading_step = 0;
@@ -223,20 +226,39 @@ void arm_auto_load() {
             case 3:
                 ArmLIFTER.resetPID();
                 ArmYALL.resetPID();
-                arm_state = ArmState::RETURN_TO_ZERO;
+                    if (double_loading++ == 1) {
+                        double_loading = 0;
+                        ArmYALL.startTrajectory(0.0f);
+                        ArmLIFTER.startTrajectory(0.0f);
+                        arm_state = ArmState::RETURN_TO_ZERO;
+                    } else if (double_loading == 0) {
+                        ArmYALL.startTrajectory(0.0f);
+                        ArmLIFTER.startTrajectory(0.0f);
+                        arm_state = ArmState::WAITING;
+                    }
                 break;
             }
             break;
         }
 
-        case ArmState::RETURN_TO_ZERO: {
-            ArmYALL.homeMotor();
-            ArmLIFTER.homeMotor();
+        case ArmState::WAITING: {
+            ArmLIFTER.update(0.15f);
+            ArmYALL.update(0.004);
 
-            if (ArmLIFTER.isHomed() && ArmYALL.isHomed()) {
+            if (ArmLIFTER.isArrived() && ArmYALL.isArrived()) {
                 bsp_buzzer_flash(3000, 0.8f, 100);
-                ArmLIFTER.resetHome();
-                ArmYALL.resetHome();
+                ArmLIFTER.resetPID();
+                ArmYALL.resetPID();
+                arm_state = ArmState::IDLE;
+            }
+        }
+
+        case ArmState::RETURN_TO_ZERO: {
+            ArmLIFTER.update(0.15f);
+            ArmYALL.update(0.004);
+
+            if (ArmLIFTER.isArrived() && ArmYALL.isArrived()) {
+                bsp_buzzer_flash(3000, 0.8f, 100);
                 ArmLIFTER.resetPID();
                 ArmYALL.resetPID();
                 arm_state = ArmState::IDLE;

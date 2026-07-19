@@ -18,10 +18,13 @@ enum class LauncherState {
 
 extern Motion LeftLauncher;
 extern Motion RightLauncher;
+extern uint8_t Gimbal_homing_flag;
+extern uint8_t Gimbal_moving_flag;
+extern uint8_t Gimbal_moved_flag;
+extern bool gimbal_trajectory_init;
 
 void DebugSend();
 void SetGate(uint32_t status);
-void Get_3508Position();
 void launcher_init();
 void launcher_auto_load();           // 状态机更新，在 task 循环中每周期调用
 void LauncherTriggerLoad();        // 触发自动上膛（从 IDLE 或 COMPLETED 状态）
@@ -35,5 +38,6 @@ void Launcher_offline_protect();    //离线保护
 void launcher_emergency_stop();
 void Reset_launcher_state();
 void launch_manual_sync();
+void launcher_reset_sync();
 
 #endif //TROBOT_LAUNCHER_H

@@ -8,10 +8,8 @@
 #include "chassis_power.h"
 #include <algorithm>
 #include "utils/os.h"
-#include "bsp/bsp.h"
-#include "chassis_power.h"
-
 #include "utils/vofa.h"
+
 using namespace controller;
 pid M3508_ChassisPID_LU(1000, 0.3, 0, 5000, 16384);     //最大速度25左右
 pid M3508_ChassisPID_RU(1000, 0.3, 0, 5000, 16384);
@@ -19,13 +17,13 @@ pid M3508_ChassisPID_RD(1000, 0.3, 0, 5000, 16384);
 pid M3508_ChassisPID_LD(1000, 0.3, 0, 5000, 16384);
 
 motor::dji M_LU("motor_LU", motor::dji::M3508,
-                motor::dji::param_t{.id = 1, .port = E_CAN_2, .mode = motor::dji::CURRENT});
-motor::dji M_RU("motor_RU", motor::dji::M3508,
-                motor::dji::param_t{.id = 4, .port = E_CAN_2, .mode = motor::dji::CURRENT});
-motor::dji M_RD("motor_RD", motor::dji::M3508,
                 motor::dji::param_t{.id = 3, .port = E_CAN_2, .mode = motor::dji::CURRENT});
-motor::dji M_LD("motor_LD", motor::dji::M3508,
+motor::dji M_RU("motor_RU", motor::dji::M3508,
                 motor::dji::param_t{.id = 2, .port = E_CAN_2, .mode = motor::dji::CURRENT});
+motor::dji M_RD("motor_RD", motor::dji::M3508,
+                motor::dji::param_t{.id = 1, .port = E_CAN_2, .mode = motor::dji::CURRENT});
+motor::dji M_LD("motor_LD", motor::dji::M3508,
+                motor::dji::param_t{.id = 4, .port = E_CAN_2, .mode = motor::dji::CURRENT});
 
 static constexpr double wheel_speed_limit = 25.0;
 

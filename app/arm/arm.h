@@ -14,7 +14,8 @@ enum class ArmState {
     MOVE_TO_REPAIR, //移动到火种夹取区
     MOVE_TO_LOAD,   //移动到装弹区
     LOADING_IS_OK,  //装弹完成
-    RETURN_TO_ZERO,
+    WAITING,    //等待第二次装弹
+    RETURN_TO_ZERO, //回到零点
     SAFE    //触发电机保护
 };
 
