@@ -29,50 +29,48 @@ static float debug;
 
      for (;;) {
          ArmDebug();
-         if (rc_ht10_data->swd == 0) {
+         if (rc_ht10_data->swb == 1) {
              // ---- 遥控器边沿检测 ----
              if (last_swa == 0 && rc_ht10_data->swa == -1 && rc_ht10_data->swb == 1 && ArmTrigCount++ == 1) {
                  ArmTrigCount = 0;
                  trig_timeout = 0;
                  ArmTriggerLoad();
              }
-
              if (ArmTrigCount > 0 && (rc_ht10_data->swb != 1 || ++trig_timeout > TRIG_TIMEOUT_MS)) {
                  ArmTrigCount = 0;
                  trig_timeout = 0;
              }
-
-             if (last_swa == 0 && rc_ht10_data->swa == 1) {
+             if (last_swa == 0 && rc_ht10_data->swa == -1) {
                  ArmWaitLoad();
              }
-
              last_swa = rc_ht10_data->swa;
-
              // ---- 自动装弹状态机：非手动模式时运行 ----
-             if (rc_ht10_data->swb != -1) {
-                 arm_auto_load();
-             }
+             arm_auto_load();
 
-             // ---- 手动模式：空闲时响应遥控器 ----
+         } else {
+             ArmTrigCount = 0;
+             trig_timeout = 0;
+             arm_stop();
+         }
+
+         // ---- 手动模式：空闲时响应遥控器 ----
+         if (rc_ht10_data->swd == 1) {
              if (rc_ht10_data->swb == -1) {
                  arm_manual_sync();
-                if (last_swb != -1) {
-                    Reset_arm_state();
-                }
-                if (rc_ht10_data->swc == 1) {
-                 lifter_manual_position(static_cast<float>(rc_ht10_data->rc_l[1]) / 2000.f);
-                 yall_manual_position(static_cast<float>(rc_ht10_data->rc_r[0]) / 80000.0f);
-                } else if (rc_ht10_data->swc == -1) {
-                 MoveArm(rc_ht10_data->rc_l[0] * 1.25 + 1500,
-                        rc_ht10_data->rc_r[1] * 1.25 + 1500);
-                 Clamp(rc_ht10_data->rc_r[0] * 1.25 + 1500);
-                }
+                 if (last_swb != -1) {
+                     Reset_arm_state();
+                 }
+                 if (rc_ht10_data->swc == 1) {
+                     lifter_manual_position(static_cast<float>(rc_ht10_data->rc_l[1]) / 2000.f);
+                     yall_manual_position(static_cast<float>(rc_ht10_data->rc_r[0]) / 80000.0f);
+                 } else if (rc_ht10_data->swc == -1) {
+                     MoveArm(rc_ht10_data->rc_l[0] * 1.25 + 1500,
+                            rc_ht10_data->rc_r[1] * 1.25 + 1500);
+                     Clamp(rc_ht10_data->rc_r[0] * 1.25 + 1500);
+                 }
              }
              last_swb = rc_ht10_data->swb;
-        } else {
-            ArmTrigCount = 0;
-            trig_timeout = 0;
-        }
+         }
          arm_offline_protect();
          os::task::sleep(1);
      }
