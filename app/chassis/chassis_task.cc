@@ -27,6 +27,8 @@
 *  v_RD = -rotate * sqrt(2) + vy - vx * sqrt(2)
 */
 
+float x = 0;
+
 [[noreturn]] void chassis_task(void *args) {
     chassis_init();
     const auto rc_ht10_data = rc::ht10::data();
@@ -43,6 +45,8 @@
             // yall_manual_speed(0);
             if (rc_ht10_data->swc == 1) {
                 motor_update(rc_ht10_data->rc_r[0] / 40.0, rc_ht10_data->rc_r[1] / 40.0, rc_ht10_data->rc_l[0] / 40.0);
+            } else if (rc_ht10_data->swc == -1) {
+                motor_update(rc_ht10_data->rc_r[0] / 150.0, rc_ht10_data->rc_r[1] / 150.0, rc_ht10_data->rc_l[0] / 150.0);
             }
         } else {
             motor_update(0, 0, 0);

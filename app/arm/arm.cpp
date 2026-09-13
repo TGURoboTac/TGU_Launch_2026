@@ -119,8 +119,8 @@ void yall_manual_position(float yall_position) {
 }
 
 void arm_stop() {
-    ArmYALL.update(0.0f);
-    ArmLIFTER.update(0.0f);
+    ArmYALL.stop();
+    ArmLIFTER.stop();
 }
 
 void arm_offline_protect() {
@@ -150,8 +150,8 @@ void ArmDebug() {
 
 #define clamp_0 950
 #define clamp_90 1600
-#define arm_0 1870
-#define arm_1 1450
+#define arm_0 1820
+#define arm_1 1370
 
 static uint8_t loading_step = 0;
 static uint32_t loading_timer = 0;
@@ -179,7 +179,7 @@ void arm_auto_load() {
                 ArmYALL.resetHome();
                 ArmLIFTER.resetPID();
                 ArmYALL.resetPID();
-                ArmLIFTER.startTrajectory(320.0);
+                ArmLIFTER.startTrajectory(330.0);
                 ArmYALL.startTrajectory(0.0f);
                 arm_state = ArmState::MOVE_TO_REPAIR;
             }
